@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CanvasItem, CanvasState } from '../types/canvas';
 
+const mergeCanvasItems = (existingItems: CanvasItem[], importedItems: CanvasItem[]): CanvasItem[] => {
+  const importedIds = new Set(importedItems.map((i) => i.id));
+  // Re-ID any existing items whose IDs collide with an imported item
+  const reIdedExisting = existingItems.map((item) =>
+    importedIds.has(item.id) ? { ...item, id: crypto.randomUUID() } : item
+  );
+  return [...reIdedExisting, ...importedItems];
+};
+
 const STORAGE_KEY = 'thought-canvas-data';
 
 const initialState: CanvasState = {
@@ -136,6 +145,13 @@ export const useCanvas = () => {
     setState(newState);
   }, []);
 
+  const mergeItems = useCallback((importedItems: CanvasItem[]) => {
+    setState((prev) => ({
+      ...prev,
+      items: mergeCanvasItems(prev.items, importedItems),
+    }));
+  }, []);
+
   return {
     state,
     addItem,
@@ -148,6 +164,7 @@ export const useCanvas = () => {
     moveItemAtPath,
     clearCanvas,
     loadState,
+    mergeItems,
     isLoaded,
   };
 };

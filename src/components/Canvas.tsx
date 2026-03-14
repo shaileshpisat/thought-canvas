@@ -39,7 +39,7 @@ export const Canvas: React.FC = () => {
         removeItemAtPath,
         moveItemAtPath,
         clearCanvas,
-        loadState,
+        mergeItems,
         isLoaded,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
@@ -66,9 +66,7 @@ export const Canvas: React.FC = () => {
             try {
                 const parsed = JSON.parse(event.target?.result as string);
                 if (parsed && Array.isArray(parsed.items)) {
-                    if (confirm('This will replace your current canvas. Continue?')) {
-                        loadState(parsed);
-                    }
+                    mergeItems(parsed.items);
                 } else {
                     alert('Invalid canvas file.');
                 }
