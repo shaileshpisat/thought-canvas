@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, Layers, X, Maximize2, Eye, Calendar } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
@@ -15,17 +15,16 @@ interface Props {
     onRemove: (id: string) => void;
     onMove: (id: string, x: number, y: number) => void;
     onEnterCanvas?: (id: string) => void;
+    // Move in/out of sub-canvases
+    canEject?: boolean;
+    onEject?: () => void;
+    moveTargets?: ICanvasItem[]; // sibling canvas-type items to move into
+    onMoveInto?: (targetCanvasId: string) => void;
 }
 
 const MIN_WIDTH = 150;
 const MIN_HEIGHT = 80;
 
-const TYPE_COLOR: Record<string, string> = {
-    text: 'bg-sky-400',
-    image: 'bg-emerald-400',
-    link: 'bg-amber-400',
-    canvas: 'bg-purple-400',
-};
 
 const MD_COMPONENTS = {
     h1: ({ node, ...props }: any) => <h1 className="text-xl font-bold text-sky-400 mb-3 mt-4 first:mt-0" {...props} />,
@@ -46,12 +45,13 @@ const MD_COMPONENTS = {
     ),
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    const [showMoveInto, setShowMoveInto] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -337,17 +337,48 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     >
                         {/* Mini canvas preview */}
                         <div className="flex-1 relative bg-[#0a1120] canvas-bg overflow-hidden rounded-t-xl">
-                            {children.length > 0 ? (
-                                <div className="absolute inset-0 p-2 flex flex-wrap gap-1 content-start overflow-hidden">
-                                    {children.slice(0, 30).map((child) => (
-                                        <div
-                                            key={child.id}
-                                            className={`h-1.5 rounded-sm opacity-50 shrink-0 ${TYPE_COLOR[child.type] ?? 'bg-white/30'}`}
-                                            style={{ width: child.type === 'text' ? 28 : child.type === 'canvas' ? 22 : 24 }}
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
+                            {children.length > 0 ? (() => {
+                                // Show top-left region at higher zoom so text is legible
+                                const PREVIEW_W = 80;
+                                const PREVIEW_H = 60;
+                                const scale = 2;
+                                return (
+                                    <div className="absolute inset-0 overflow-hidden">
+                                        <div style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: PREVIEW_W, height: PREVIEW_H, position: 'absolute', top: -100 * scale, left: 0 }}>
+                                            {children.map((child) => {
+                                                const w = child.width ?? (child.type === 'text' ? 180 : child.type === 'canvas' ? 160 : 200);
+                                                const h = child.height ?? (child.type === 'text' ? 80 : child.type === 'canvas' ? 120 : 90);
+                                                return (
+                                                    <div
+                                                        key={child.id}
+                                                        className="absolute rounded overflow-hidden"
+                                                        style={{ left: child.x, top: child.y, width: w, height: h, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                                    >
+                                                        {child.type === 'text' && (
+                                                            <div className="text-white/70 p-1.5 text-[9px] leading-snug font-sans overflow-hidden [&_h1]:text-[11px] [&_h1]:font-bold [&_h1]:text-sky-400 [&_h2]:text-[10px] [&_h2]:font-bold [&_h2]:text-sky-400/80 [&_h3]:text-[9px] [&_h3]:font-bold [&_h3]:text-sky-400/70 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-3 [&_ol]:list-decimal [&_ol]:pl-3 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-0.5 [&_code]:rounded [&_a]:text-sky-400">
+                                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{child.content}</ReactMarkdown>
+                                                            </div>
+                                                        )}
+                                                        {child.type === 'image' && (
+                                                            <img src={child.content} alt="" className="w-full h-full object-cover opacity-70" />
+                                                        )}
+                                                        {child.type === 'link' && (
+                                                            <p className="text-amber-300/70 p-1.5 text-[9px] leading-snug truncate font-sans">
+                                                                {child.metadata?.title || child.content}
+                                                            </p>
+                                                        )}
+                                                        {child.type === 'canvas' && (
+                                                            <p className="text-purple-300/70 p-1.5 text-[9px] leading-snug truncate font-sans flex items-center gap-1">
+                                                                {child.content || 'Untitled Canvas'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })() : (
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <span className="text-white/15 text-xs font-medium">Empty</span>
                                 </div>
@@ -518,6 +549,49 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             value={item.date || ''}
                             onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
                         />
+
+                        <div className="w-[1px] h-4 bg-white/10" />
+
+                        {/* Eject to parent */}
+                        {canEject && (
+                            <button
+                                onClick={onEject}
+                                className="p-1.5 text-white/40 hover:text-sky-400 transition-colors"
+                                title="Move out to parent canvas"
+                            >
+                                <ArrowUpLeft size={16} />
+                            </button>
+                        )}
+
+                        {/* Move into a sibling canvas */}
+                        {moveTargets && moveTargets.length > 0 && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowMoveInto((v) => !v)}
+                                    className={`p-1.5 transition-colors flex items-center gap-0.5 ${showMoveInto ? 'text-purple-400' : 'text-white/40 hover:text-purple-400'}`}
+                                    title="Move into a canvas"
+                                >
+                                    <LogIn size={16} />
+                                    <ChevronDown size={10} />
+                                </button>
+                                {showMoveInto && (
+                                    <div className="absolute top-full left-0 mt-1 z-[200] min-w-[140px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}>
+                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Move into</div>
+                                        {moveTargets.map((t) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => { onMoveInto?.(t.id); setShowMoveInto(false); }}
+                                                className="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-purple-500/15 transition-colors flex items-center gap-2"
+                                            >
+                                                <Layers size={11} className="text-purple-400 shrink-0" />
+                                                <span className="truncate">{t.content || 'Untitled Canvas'}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="w-[1px] h-4 bg-white/10" />
 

@@ -42,6 +42,7 @@ export const Canvas: React.FC = () => {
         updateItemAtPath,
         removeItemAtPath,
         moveItemAtPath,
+        moveItemBetweenPaths,
         clearCanvas,
         mergeItems,
         isLoaded,
@@ -118,6 +119,22 @@ export const Canvas: React.FC = () => {
         removeItemAtPath(navigationPathRef.current, id);
     const moveItem = (id: string, x: number, y: number) =>
         moveItemAtPath(navigationPathRef.current, id, x, y);
+
+    // Move a block out of current sub-canvas to parent level
+    const handleEject = (item: CanvasItem) => {
+        const parentPath = navigationPath.slice(0, -1);
+        const parentItems = getItemsAtPath(state.items, parentPath);
+        const { x, y } = findEmptyLocation(parentItems, item.width ?? 240, item.height ?? 120);
+        moveItemBetweenPaths(navigationPath, parentPath, item, x, y);
+    };
+
+    // Move a block from current level into a sibling canvas
+    const handleMoveInto = (item: CanvasItem, targetCanvasId: string) => {
+        const targetPath = [...navigationPath, targetCanvasId];
+        const targetItems = getItemsAtPath(state.items, targetPath);
+        const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
+        moveItemBetweenPaths(navigationPath, targetPath, item, x, y);
+    };
 
     const fetchMetadata = async (url: string, id: string) => {
         try {
@@ -243,6 +260,10 @@ export const Canvas: React.FC = () => {
                         onRemove={removeItem}
                         onMove={moveItem}
                         onEnterCanvas={handleEnterCanvas}
+                        canEject={navigationPath.length > 0}
+                        onEject={() => handleEject(item)}
+                        moveTargets={currentItems.filter((i) => i.type === 'canvas' && i.id !== item.id)}
+                        onMoveInto={(targetId) => handleMoveInto(item, targetId)}
                     />
                 ))}
             </div>
@@ -378,7 +399,7 @@ export const Canvas: React.FC = () => {
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
                                 Thought Canvas
                             </h1>
-                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.1.0</span>
+                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.0</span>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -393,7 +414,7 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={() => setShowStats(true)}
-                    className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
+                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
                 >
                     <Activity size={12} />
                     Stats
@@ -401,13 +422,13 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={handleExport}
-                    className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center gap-2"
+                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center gap-2"
                 >
                     <Download size={12} />
                     Export
                 </button>
 
-                <label className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2 cursor-pointer">
+                <label className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2 cursor-pointer">
                     <Upload size={12} />
                     Import
                     <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
@@ -416,7 +437,7 @@ export const Canvas: React.FC = () => {
                 <div className="relative group/datebtn">
                     <button
                         onClick={() => setShowDateCalendar((v) => !v)}
-                        className={`mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2
+                        className={`mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2
                             ${showDateCalendar ? 'text-sky-400 border-sky-500/30' : overdueCount > 0 ? 'text-red-400/70 hover:text-red-400' : 'text-white/40 hover:text-sky-400 hover:border-sky-500/30'}
                         `}
                     >
@@ -550,7 +571,7 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={clearCanvas}
-                    className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-red-400 hover:border-red-500/30 transition-all"
+                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center"
                 >
                     Clear Canvas
                 </button>

@@ -135,6 +135,20 @@ export const useCanvas = () => {
     [moveItemAtPath]
   );
 
+  const moveItemBetweenPaths = useCallback(
+    (fromPath: string[], toPath: string[], item: CanvasItem, newX?: number, newY?: number) => {
+      setState((prev) => {
+        let newItems = updateItemsAtPath(prev.items, fromPath, (items) =>
+          items.filter((i) => i.id !== item.id)
+        );
+        const movedItem = newX !== undefined ? { ...item, x: newX, y: newY ?? item.y } : item;
+        newItems = updateItemsAtPath(newItems, toPath, (items) => [...items, movedItem]);
+        return { ...prev, items: newItems };
+      });
+    },
+    []
+  );
+
   const clearCanvas = useCallback(() => {
     if (confirm('Are you sure you want to clear the entire canvas?')) {
       setState(initialState);
@@ -162,6 +176,7 @@ export const useCanvas = () => {
     updateItemAtPath,
     removeItemAtPath,
     moveItemAtPath,
+    moveItemBetweenPaths,
     clearCanvas,
     loadState,
     mergeItems,
