@@ -12,6 +12,8 @@ import {
     Layers,
     Home,
     ChevronRight,
+    Download,
+    Upload,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { findEmptyLocation } from '@/utils/canvasUtils';
@@ -37,11 +39,46 @@ export const Canvas: React.FC = () => {
         removeItemAtPath,
         moveItemAtPath,
         clearCanvas,
+        loadState,
         isLoaded,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const canvasRef = useRef<HTMLDivElement>(null);
+    const importRef = useRef<HTMLInputElement>(null);
+
+    const handleExport = () => {
+        const json = JSON.stringify(state, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `thought-canvas-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const parsed = JSON.parse(event.target?.result as string);
+                if (parsed && Array.isArray(parsed.items)) {
+                    if (confirm('This will replace your current canvas. Continue?')) {
+                        loadState(parsed);
+                    }
+                } else {
+                    alert('Invalid canvas file.');
+                }
+            } catch {
+                alert('Failed to read file.');
+            }
+            e.target.value = '';
+        };
+        reader.readAsText(file);
+    };
 
     // Refs so paste handler never captures stale values
     const navigationPathRef = useRef(navigationPath);
@@ -332,6 +369,20 @@ export const Canvas: React.FC = () => {
                     <Activity size={12} />
                     Stats
                 </button>
+
+                <button
+                    onClick={handleExport}
+                    className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center gap-2"
+                >
+                    <Download size={12} />
+                    Export
+                </button>
+
+                <label className="mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2 cursor-pointer">
+                    <Upload size={12} />
+                    Import
+                    <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+                </label>
 
                 <button
                     onClick={clearCanvas}

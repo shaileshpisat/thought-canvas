@@ -132,6 +132,10 @@ export const useCanvas = () => {
     }
   }, []);
 
+  const loadState = useCallback((newState: CanvasState) => {
+    setState(newState);
+  }, []);
+
   return {
     state,
     addItem,
@@ -143,6 +147,7 @@ export const useCanvas = () => {
     removeItemAtPath,
     moveItemAtPath,
     clearCanvas,
+    loadState,
     isLoaded,
   };
 };
