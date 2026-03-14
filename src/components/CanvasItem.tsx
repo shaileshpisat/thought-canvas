@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, Check, ArrowRight, Layers } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, Layers, X, Maximize2, Eye } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -18,7 +19,6 @@ interface Props {
 const MIN_WIDTH = 150;
 const MIN_HEIGHT = 80;
 
-// Color dot per item type for the canvas preview
 const TYPE_COLOR: Record<string, string> = {
     text: 'bg-sky-400',
     image: 'bg-emerald-400',
@@ -26,14 +26,37 @@ const TYPE_COLOR: Record<string, string> = {
     canvas: 'bg-purple-400',
 };
 
+const MD_COMPONENTS = {
+    h1: ({ node, ...props }: any) => <h1 className="text-xl font-bold text-sky-400 mb-3 mt-4 first:mt-0" {...props} />,
+    h2: ({ node, ...props }: any) => <h2 className="text-lg font-bold text-sky-400/90 mb-2 mt-3" {...props} />,
+    h3: ({ node, ...props }: any) => <h3 className="text-base font-bold text-sky-400/80 mb-2 mt-2" {...props} />,
+    p: ({ node, ...props }: any) => <p className="leading-relaxed mb-3 last:mb-0" {...props} />,
+    ul: ({ node, ...props }: any) => <ul className="list-disc pl-4 mb-3 space-y-1" {...props} />,
+    ol: ({ node, ...props }: any) => <ol className="list-decimal pl-4 mb-3 space-y-1" {...props} />,
+    li: ({ node, ...props }: any) => <li className="pl-1" {...props} />,
+    blockquote: ({ node, ...props }: any) => (
+        <blockquote className="border-l-4 border-sky-500/50 bg-white/5 py-2 px-4 my-3 rounded-r-lg italic text-white/70" {...props} />
+    ),
+    code: ({ node, ...props }: any) => (
+        <code className="text-sky-300 bg-white/10 px-1.5 py-0.5 rounded text-[0.9em] font-mono" {...props} />
+    ),
+    a: ({ node, ...props }: any) => (
+        <a className="text-sky-400 underline hover:text-sky-300 transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
+    ),
+};
+
 export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
+    const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
+
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
 
     const motionX = useMotionValue(item.x);
@@ -50,6 +73,21 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     useEffect(() => {
         if (isEditing && textareaRef.current) {
             textareaRef.current.focus();
+        }
+        if (isEditing && cardRef.current) {
+            const rect = cardRef.current.getBoundingClientRect();
+            const previewWidth = 300;
+            const gap = 12;
+            // Prefer right side; fall back to left
+            const leftCandidate = rect.right + gap;
+            const left = leftCandidate + previewWidth > window.innerWidth
+                ? rect.left - previewWidth - gap
+                : leftCandidate;
+            const top = Math.min(rect.top, window.innerHeight - 420);
+            setPreviewPos({ top: Math.max(8, top), left: Math.max(8, left) });
+        }
+        if (!isEditing) {
+            setPreviewPos(null);
         }
     }, [isEditing]);
 
@@ -110,49 +148,99 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const renderContent = () => {
         switch (item.type) {
             case 'text':
-                return isEditing ? (
-                    <textarea
-                        ref={textareaRef}
-                        className="w-full h-full bg-transparent outline-none resize-none text-white placeholder-white/30 p-4 font-sans leading-relaxed"
-                        value={item.content}
-                        onChange={(e) => onUpdate(item.id, { content: e.target.value })}
-                        onBlur={() => setIsEditing(false)}
-                        placeholder="Type something in Markdown..."
-                        spellCheck={false}
-                    />
-                ) : (
-                    <div
-                        className="w-full h-full p-4 overflow-y-auto cursor-text text-white/90"
-                        onClick={() => setIsEditing(true)}
-                    >
-                        {item.content ? (
-                            <div className="text-sm max-w-none text-white/90">
-                                <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    components={{
-                                        h1: ({ node, ...props }) => <h1 className="text-xl font-bold text-sky-400 mb-3 mt-4 first:mt-0" {...props} />,
-                                        h2: ({ node, ...props }) => <h2 className="text-lg font-bold text-sky-400/90 mb-2 mt-3" {...props} />,
-                                        h3: ({ node, ...props }) => <h3 className="text-base font-bold text-sky-400/80 mb-2 mt-2" {...props} />,
-                                        p: ({ node, ...props }) => <p className="leading-relaxed mb-3 last:mb-0" {...props} />,
-                                        ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-3 space-y-1" {...props} />,
-                                        ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-3 space-y-1" {...props} />,
-                                        li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-                                        blockquote: ({ node, ...props }) => (
-                                            <blockquote className="border-l-4 border-sky-500/50 bg-white/5 py-2 px-4 my-3 rounded-r-lg italic text-white/70" {...props} />
-                                        ),
-                                        code: ({ node, ...props }) => (
-                                            <code className="text-sky-300 bg-white/10 px-1.5 py-0.5 rounded text-[0.9em] font-mono" {...props} />
-                                        ),
-                                        a: ({ node, ...props }) => <a className="text-sky-400 underline hover:text-sky-300 transition-colors" target="_blank" rel="noopener noreferrer" {...props} />,
-                                    }}
-                                >
-                                    {item.content}
-                                </ReactMarkdown>
-                            </div>
+                return (
+                    <>
+                        {/* Inline editing: textarea inside the card */}
+                        {isEditing ? (
+                            <textarea
+                                ref={textareaRef}
+                                className="w-full h-full bg-transparent outline-none resize-none text-white/90 placeholder-white/20 p-4 font-mono text-sm leading-relaxed"
+                                value={item.content}
+                                onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+                                onBlur={() => setIsEditing(false)}
+                                placeholder="Type something in Markdown..."
+                                spellCheck={false}
+                            />
                         ) : (
-                            <span className="text-white/30 italic">Click to edit...</span>
+                            <div
+                                className="w-full h-full p-4 overflow-y-auto cursor-text text-white/90"
+                                onClick={() => setIsEditing(true)}
+                            >
+                                {item.content
+                                    ? <div className="text-sm max-w-none text-white/90">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                      </div>
+                                    : <span className="text-white/30 italic">Click to edit...</span>
+                                }
+                            </div>
                         )}
-                    </div>
+
+                        {/* Inline edit: floating preview panel next to the card */}
+                        {isEditing && previewPos && createPortal(
+                            <div
+                                className="fixed z-[999] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/15 flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2 duration-150"
+                                style={{ top: previewPos.top, left: previewPos.left, width: currentWidth, height: currentHeight, background: 'rgba(8, 14, 26, 0.96)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                            >
+                                {/* Floating preview indicator */}
+                                <div className="absolute top-2 right-2 z-10 p-1 rounded-md bg-white/5 ring-1 ring-white/10" title="Preview">
+                                    <Eye size={11} className="text-white/30" />
+                                </div>
+                                <div className="flex-1 p-4 overflow-y-auto text-sm text-white/90">
+                                    {item.content
+                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                        : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
+                                    }
+                                </div>
+                            </div>,
+                            document.body
+                        )}
+
+                        {/* Expanded view: full split overlay */}
+                        {isExpanded && createPortal(
+                            <div
+                                className="fixed inset-0 z-[1000] flex items-center justify-center"
+                                onMouseDown={(e) => { if (e.target === e.currentTarget) setIsExpanded(false); }}
+                            >
+                                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                                <div className="relative z-10 w-[820px] max-w-[95vw] h-[520px] max-h-[85vh] glass-dark rounded-2xl shadow-2xl shadow-black/60 ring-1 ring-white/15 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+                                        <div className="flex items-center gap-3 text-xs font-medium">
+                                            <span className="text-white/60">Markdown</span>
+                                            <div className="w-px h-3 bg-white/15" />
+                                            <span className="text-white/40">Preview</span>
+                                        </div>
+                                        <button
+                                            onMouseDown={(e) => { e.stopPropagation(); setIsExpanded(false); }}
+                                            className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                        >
+                                            <X size={15} />
+                                        </button>
+                                    </div>
+                                    {/* Split panes */}
+                                    <div className="flex flex-1 min-h-0">
+                                        <textarea
+                                            className="w-1/2 h-full bg-transparent outline-none resize-none text-white/90 placeholder-white/20 p-5 font-mono text-sm leading-relaxed"
+                                            value={item.content}
+                                            onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+                                            placeholder="Type something in Markdown..."
+                                            spellCheck={false}
+                                            autoFocus
+                                        />
+                                        <div className="w-px bg-white/10 shrink-0" />
+                                        <div className="w-1/2 h-full p-5 overflow-y-auto text-sm text-white/90">
+                                            {item.content
+                                                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                                : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>,
+                            document.body
+                        )}
+                    </>
                 );
 
             case 'image':
@@ -249,7 +337,6 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     <span className="text-white/15 text-xs font-medium">Empty</span>
                                 </div>
                             )}
-                            {/* Hover overlay */}
                             <div className="absolute inset-0 bg-purple-500/0 group-hover:bg-purple-500/8 transition-colors duration-200 flex items-center justify-center">
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-white/70 text-xs font-medium">
                                     <ArrowRight size={12} />
@@ -258,7 +345,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </div>
                         </div>
 
-                        {/* Canvas footer — name + item count */}
+                        {/* Canvas footer */}
                         <div className="shrink-0 px-3 py-2 border-t border-white/10 flex items-center justify-between gap-2 bg-purple-950/20 rounded-b-xl">
                             {isRenaming ? (
                                 <input
@@ -300,6 +387,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
     return (
         <motion.div
+            ref={cardRef}
             drag={!isEditing && !isResizing && !isRenaming}
             dragMomentum={false}
             dragElastic={0}
@@ -340,13 +428,22 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {item.type === 'text' && (
-                            <button
-                                onClick={() => setIsEditing(!isEditing)}
-                                className={`p-1.5 transition-colors ${isEditing ? 'text-green-400 hover:text-green-300' : 'text-white/40 hover:text-sky-400'}`}
-                                title={isEditing ? 'Save' : 'Edit'}
-                            >
-                                {isEditing ? <Check size={16} /> : <Edit3 size={16} />}
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className={`p-1.5 transition-colors ${isEditing ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                    title="Edit"
+                                >
+                                    <Edit3 size={16} />
+                                </button>
+                                <button
+                                    onClick={() => { setIsEditing(false); setIsExpanded(true); }}
+                                    className={`p-1.5 transition-colors ${isExpanded ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                    title="Expanded view"
+                                >
+                                    <Maximize2 size={16} />
+                                </button>
+                            </>
                         )}
 
                         {item.type === 'canvas' && (
