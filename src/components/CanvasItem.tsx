@@ -4,9 +4,10 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, Layers, X, Maximize2, Eye } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, Layers, X, Maximize2, Eye, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
 
 interface Props {
     item: ICanvasItem;
@@ -57,10 +58,14 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
+    const dateInputRef = useRef<HTMLInputElement>(null);
     const isDragging = useRef(false);
 
     const motionX = useMotionValue(item.x);
     const motionY = useMotionValue(item.y);
+
+    const dateStatus = item.date ? getDateStatus(item.date) : null;
+    const dateLabel = item.date ? getRelativeLabel(item.date) : null;
 
     useEffect(() => {
         if (!isDragging.current) motionX.set(item.x);
@@ -144,6 +149,16 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
     const currentWidth = localSize?.width ?? item.width ?? defaultWidth;
     const currentHeight = localSize?.height ?? item.height ?? defaultHeight;
+
+    const handleDateClick = () => {
+        if (dateInputRef.current) {
+            try {
+                (dateInputRef.current as any).showPicker();
+            } catch {
+                dateInputRef.current.click();
+            }
+        }
+    };
 
     const renderContent = () => {
         switch (item.type) {
@@ -414,7 +429,11 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 ${isHovered
                     ? item.type === 'canvas'
                         ? 'ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/10'
+                        : dateStatus === 'past-old'
+                        ? 'ring-2 ring-red-500/60 shadow-lg shadow-red-500/15'
                         : 'ring-2 ring-sky-500/50 shadow-lg shadow-sky-500/10'
+                    : dateStatus === 'past-old'
+                    ? 'ring-2 ring-red-500/40 shadow-md shadow-red-500/10'
                     : 'ring-1 ring-white/10'
                 }
             `}
@@ -465,12 +484,66 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </>
                         )}
 
+                        <div className="w-[1px] h-4 bg-white/10" />
+
+                        {/* Date picker button */}
+                        <button
+                            onClick={handleDateClick}
+                            className={`p-1.5 transition-colors relative ${
+                                item.date
+                                    ? dateStatus === 'today'
+                                        ? 'text-green-400 hover:text-green-300'
+                                        : dateStatus === 'past-old' || dateStatus === 'past-week'
+                                        ? 'text-red-400 hover:text-red-300'
+                                        : 'text-sky-400 hover:text-sky-300'
+                                    : 'text-white/40 hover:text-sky-400'
+                            }`}
+                            title={item.date ? `Date: ${item.date} — click to change` : 'Add date'}
+                        >
+                            <Calendar size={16} />
+                        </button>
+                        {item.date && (
+                            <button
+                                onClick={() => onUpdate(item.id, { date: undefined })}
+                                className="p-1.5 text-white/25 hover:text-red-400 transition-colors"
+                                title="Remove date"
+                            >
+                                <X size={13} />
+                            </button>
+                        )}
+                        <input
+                            ref={dateInputRef}
+                            type="date"
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none overflow-hidden"
+                            value={item.date || ''}
+                            onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
+                        />
+
+                        <div className="w-[1px] h-4 bg-white/10" />
+
                         <button
                             onClick={() => onRemove(item.id)}
                             className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
                         >
                             <Trash2 size={16} />
                         </button>
+                    </div>
+                )}
+
+                {/* Date overlay badge — top right of block */}
+                {item.date && dateLabel && (
+                    <div
+                        className={`
+                            absolute -top-3 right-3 z-30 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide pointer-events-none select-none
+                            ${dateStatus === 'today'
+                                ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/30 shadow-sm shadow-green-500/20'
+                                : dateStatus === 'past-old' || dateStatus === 'past-week'
+                                ? 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25 shadow-sm shadow-red-500/15'
+                                : 'bg-white/8 text-white/55 ring-1 ring-white/15'
+                            }
+                        `}
+                    >
+                        {dateLabel}
                     </div>
                 )}
 

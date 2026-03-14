@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useCanvas, getItemsAtPath } from '@/hooks/useCanvas';
 import { CanvasItem as CanvasItemComponent } from './CanvasItem';
 import {
@@ -14,9 +14,13 @@ import {
     ChevronRight,
     Download,
     Upload,
+    CalendarDays,
+    ChevronLeft,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
+
 import { findEmptyLocation } from '@/utils/canvasUtils';
+import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
 
 const getBreadcrumbLabels = (items: CanvasItem[], path: string[]): string[] => {
@@ -43,7 +47,11 @@ export const Canvas: React.FC = () => {
         isLoaded,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
+    const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
+    const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
+        const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
+    });
     const canvasRef = useRef<HTMLDivElement>(null);
     const importRef = useRef<HTMLInputElement>(null);
 
@@ -87,6 +95,19 @@ export const Canvas: React.FC = () => {
     currentItemsRef.current = currentItems;
 
     const breadcrumbLabels = getBreadcrumbLabels(state.items, navigationPath);
+
+    // Date stats across all items (including nested)
+    const allFlat = flattenItems(state.items);
+    const itemsWithDate = allFlat.filter((i) => i.date);
+    const bucket = (b: string) => itemsWithDate.filter((i) => getDateBucket(i.date!) === b).length;
+    const todayCount     = bucket('today');
+    const yesterdayCount = bucket('yesterday');
+    const tomorrowCount  = bucket('tomorrow');
+    const lastWeekCount  = bucket('last-week');
+    const nextWeekCount  = bucket('next-week');
+    const pastCount      = bucket('past');
+    const upcomingCount  = bucket('upcoming');
+    const overdueCount   = yesterdayCount + lastWeekCount + pastCount;
 
     // Curried path-aware operations for the current canvas level
     const addItem = (item: Omit<CanvasItem, 'id'> & { id?: string }) =>
@@ -347,16 +368,26 @@ export const Canvas: React.FC = () => {
             </div>
 
             {/* App Header */}
-            <div className="fixed top-6 left-8 z-[100] flex items-start gap-8">
+            <div className="fixed top-6 left-8 z-[100] flex items-start gap-2">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 glass rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg shadow-sky-500/10">
                         <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-                            Thought Canvas
-                        </h1>
+                        <div className="flex items-baseline gap-2">
+                            <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+                                Thought Canvas
+                            </h1>
+                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.1.0</span>
+                        </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
+                        <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
+                            Developed &amp; managed by
+                            <a href="https://allwebtech.in" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-white/50 transition-colors">
+                                <img src="https://www.google.com/s2/favicons?domain=allwebtech.in&sz=16" alt="" className="w-3 h-3 rounded-sm" />
+                                <span className="font-bold text-[11px]" style={{ color: '#1256c1' }}>AllWebTech</span>
+                            </a>
+                        </p>
                     </div>
                 </div>
 
@@ -381,6 +412,141 @@ export const Canvas: React.FC = () => {
                     Import
                     <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
                 </label>
+
+                <div className="relative group/datebtn">
+                    <button
+                        onClick={() => setShowDateCalendar((v) => !v)}
+                        className={`mt-1 px-3 py-1.5 glass rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2
+                            ${showDateCalendar ? 'text-sky-400 border-sky-500/30' : overdueCount > 0 ? 'text-red-400/70 hover:text-red-400' : 'text-white/40 hover:text-sky-400 hover:border-sky-500/30'}
+                        `}
+                    >
+                        <CalendarDays size={12} />
+                        Dates
+                        {itemsWithDate.length > 0 && (
+                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${overdueCount > 0 ? 'bg-red-500/20 text-red-400' : 'bg-sky-500/20 text-sky-400'}`}>
+                                {itemsWithDate.length}
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Hover stats tooltip */}
+                    <div className="absolute top-full left-0 mt-2 z-[150] w-44 rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 opacity-0 group-hover/datebtn:opacity-100 pointer-events-none transition-opacity duration-150 p-3 w-48 text-[10px]"
+                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+                        <div className="font-bold text-white/40 uppercase tracking-wider mb-2 text-[9px]">Date Stats</div>
+                        {itemsWithDate.length === 0
+                            ? <div className="text-white/25">No dated blocks yet</div>
+                            : (() => {
+                                const rows: { label: string; count: number; color: string; dot: string }[] = [
+                                    { label: 'Today',     count: todayCount,     color: 'text-green-400',  dot: 'bg-green-400' },
+                                    { label: 'Yesterday', count: yesterdayCount, color: 'text-red-400',    dot: 'bg-red-400' },
+                                    { label: 'Tomorrow',  count: tomorrowCount,  color: 'text-sky-400',    dot: 'bg-sky-400' },
+                                    { label: 'Last Week', count: lastWeekCount,  color: 'text-red-400',    dot: 'bg-red-400' },
+                                    { label: 'Next Week', count: nextWeekCount,  color: 'text-sky-400',    dot: 'bg-sky-400' },
+                                    { label: 'Past',      count: pastCount,      color: 'text-red-400/70', dot: 'bg-red-400/70' },
+                                    { label: 'Upcoming',  count: upcomingCount,  color: 'text-sky-400/70', dot: 'bg-sky-400/70' },
+                                ];
+                                return (
+                                    <div className="space-y-1.5">
+                                        {rows.filter(r => r.count > 0).map(r => (
+                                            <div key={r.label} className="flex justify-between items-center">
+                                                <span className="flex items-center gap-1.5 text-white/50">
+                                                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${r.dot}`} />
+                                                    {r.label}
+                                                </span>
+                                                <span className={`font-bold ${r.color}`}>{r.count}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between items-center pt-1.5 border-t border-white/10">
+                                            <span className="text-white/30">Total</span>
+                                            <span className="text-white/60 font-bold">{itemsWithDate.length}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()
+                        }
+                    </div>
+
+                    {/* Click calendar — shown below the button */}
+                    {showDateCalendar && (() => {
+                        const yr = hoverCalMonth.getFullYear();
+                        const mo = hoverCalMonth.getMonth();
+                        const firstDay = new Date(yr, mo, 1);
+                        const lastDay = new Date(yr, mo + 1, 0);
+                        const startPad = (firstDay.getDay() + 6) % 7;
+                        const days: (number | null)[] = [];
+                        for (let i = 0; i < startPad; i++) days.push(null);
+                        for (let d = 1; d <= lastDay.getDate(); d++) days.push(d);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        const today = new Date();
+                        const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+                        const getDs = (d: number) => `${yr}-${pad(mo + 1)}-${pad(d)}`;
+                        const datesMap = new Map<string, string>();
+                        for (const item of itemsWithDate) {
+                            if (item.date && !datesMap.has(item.date)) {
+                                datesMap.set(item.date, getDateStatus(item.date));
+                            }
+                        }
+                        return (
+                            <div
+                                className="absolute top-full left-0 mt-8 z-[160] rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 p-3 w-56 animate-in fade-in slide-in-from-top-2 duration-150"
+                                style={{ background: 'rgba(6, 10, 20, 0.99)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+                            >
+                                {/* Month nav */}
+                                <div className="flex items-center justify-between mb-2">
+                                    <button onClick={() => setHoverCalMonth(new Date(yr, mo - 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-colors text-white/40 hover:text-white">
+                                        <ChevronLeft size={12} />
+                                    </button>
+                                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                                        {hoverCalMonth.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                    </span>
+                                    <button onClick={() => setHoverCalMonth(new Date(yr, mo + 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-colors text-white/40 hover:text-white">
+                                        <ChevronRight size={12} />
+                                    </button>
+                                </div>
+                                {/* Day headers */}
+                                <div className="grid grid-cols-7 mb-1">
+                                    {['M','T','W','T','F','S','S'].map((d, i) => (
+                                        <div key={i} className="text-center text-[9px] font-bold text-white/25 py-0.5">{d}</div>
+                                    ))}
+                                </div>
+                                {/* Days */}
+                                <div className="grid grid-cols-7 gap-y-0.5">
+                                    {days.map((day, i) => {
+                                        if (!day) return <div key={`e${i}`} className="h-7" />;
+                                        const ds = getDs(day);
+                                        const status = datesMap.get(ds);
+                                        const isToday = ds === todayStr;
+                                        return (
+                                            <div key={day} className="flex flex-col items-center justify-center h-7">
+                                                <span className={`text-[11px] w-5 h-5 flex items-center justify-center rounded-full font-medium
+                                                    ${status === 'today' ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50' :
+                                                      status === 'past-old' || status === 'past-week' ? 'bg-red-500/25 text-red-300 ring-1 ring-red-500/40' :
+                                                      status === 'future' ? 'bg-sky-500/25 text-sky-300 ring-1 ring-sky-500/40' :
+                                                      isToday ? 'ring-1 ring-white/25 text-white/70' :
+                                                      'text-white/35'}`}>
+                                                    {day}
+                                                </span>
+                                                {status && (
+                                                    <div className={`w-1 h-1 rounded-full mt-0.5
+                                                        ${status === 'today' ? 'bg-green-400' :
+                                                          status === 'past-old' || status === 'past-week' ? 'bg-red-400' :
+                                                          'bg-sky-400'}`} />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {/* Legend */}
+                                <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-white/35">
+                                    {todayCount > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />{todayCount} today</span>}
+                                    {overdueCount > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />{overdueCount} overdue</span>}
+                                    {upcomingCount > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />{upcomingCount} upcoming</span>}
+                                    {itemsWithDate.length === 0 && <span>No dated blocks</span>}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
 
                 <button
                     onClick={clearCanvas}

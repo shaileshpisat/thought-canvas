@@ -8,6 +8,7 @@ export interface CanvasItem {
   width?: number;
   height?: number;
   content: string; // text content, image URL, link URL, or canvas name
+  date?: string; // ISO date string YYYY-MM-DD
   children?: CanvasItem[]; // only for type 'canvas'
   metadata?: {
     title?: string;
