@@ -47,6 +47,7 @@ const MD_COMPONENTS = {
 
 export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto }) => {
     const [isHovered, setIsHovered] = useState(false);
+    const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [isRenaming, setIsRenaming] = useState(false);
@@ -338,13 +339,31 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         {/* Mini canvas preview */}
                         <div className="flex-1 relative bg-[#0a1120] canvas-bg overflow-hidden rounded-t-xl">
                             {children.length > 0 ? (() => {
-                                // Show top-left region at higher zoom so text is legible
-                                const PREVIEW_W = 80;
-                                const PREVIEW_H = 60;
-                                const scale = 2;
+                                // Show a zoomed viewport into the top-left portion of the canvas
+                                const PAD = 16;
+                                const FOOTER_H = 44;
+                                const TOP_MARGIN = 20;
+                                const previewW = currentWidth;
+                                const previewH = currentHeight - FOOTER_H;
+                                // Find top-left origin across all children
+                                let minX = Infinity, minY = Infinity;
+                                children.forEach(child => {
+                                    if (child.x < minX) minX = child.x;
+                                    if (child.y < minY) minY = child.y;
+                                });
+                                // Fixed viewport size in canvas coords — smaller = more zoomed in
+                                const VIEWPORT_W = previewW * 1.2;
+                                const VIEWPORT_H = (previewH - TOP_MARGIN) * 1.2;
+                                const scale = Math.min(previewW / VIEWPORT_W, (previewH - TOP_MARGIN) / VIEWPORT_H);
                                 return (
                                     <div className="absolute inset-0 overflow-hidden">
-                                        <div style={{ transform: `scale(${scale})`, transformOrigin: '0 0', width: PREVIEW_W, height: PREVIEW_H, position: 'absolute', top: -100 * scale, left: 0 }}>
+                                        <div style={{
+                                            transform: `translate(${PAD * scale - minX * scale}px, ${(TOP_MARGIN + PAD * scale) - minY * scale}px) scale(${scale})`,
+                                            transformOrigin: '0 0',
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                        }}>
                                             {children.map((child) => {
                                                 const w = child.width ?? (child.type === 'text' ? 180 : child.type === 'canvas' ? 160 : 200);
                                                 const h = child.height ?? (child.type === 'text' ? 80 : child.type === 'canvas' ? 120 : 90);
@@ -355,7 +374,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                         style={{ left: child.x, top: child.y, width: w, height: h, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
                                                     >
                                                         {child.type === 'text' && (
-                                                            <div className="text-white/70 p-1.5 text-[9px] leading-snug font-sans overflow-hidden [&_h1]:text-[11px] [&_h1]:font-bold [&_h1]:text-sky-400 [&_h2]:text-[10px] [&_h2]:font-bold [&_h2]:text-sky-400/80 [&_h3]:text-[9px] [&_h3]:font-bold [&_h3]:text-sky-400/70 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-3 [&_ol]:list-decimal [&_ol]:pl-3 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-0.5 [&_code]:rounded [&_a]:text-sky-400">
+                                                            <div className="text-white/70 p-1.5 text-[13px] leading-snug font-sans overflow-hidden [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-sky-400 [&_h2]:text-[13px] [&_h2]:font-bold [&_h2]:text-sky-400/80 [&_h3]:text-[12px] [&_h3]:font-bold [&_h3]:text-sky-400/70 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-3 [&_ol]:list-decimal [&_ol]:pl-3 [&_code]:text-sky-300 [&_code]:bg-white/10 [&_code]:px-0.5 [&_code]:rounded [&_a]:text-sky-400">
                                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{child.content}</ReactMarkdown>
                                                             </div>
                                                         )}
@@ -363,12 +382,12 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                             <img src={child.content} alt="" className="w-full h-full object-cover opacity-70" />
                                                         )}
                                                         {child.type === 'link' && (
-                                                            <p className="text-amber-300/70 p-1.5 text-[9px] leading-snug truncate font-sans">
+                                                            <p className="text-amber-300/70 p-1.5 text-[13px] leading-snug truncate font-sans">
                                                                 {child.metadata?.title || child.content}
                                                             </p>
                                                         )}
                                                         {child.type === 'canvas' && (
-                                                            <p className="text-purple-300/70 p-1.5 text-[9px] leading-snug truncate font-sans flex items-center gap-1">
+                                                            <p className="text-purple-300/70 p-1.5 text-[13px] leading-snug truncate font-sans flex items-center gap-1">
                                                                 {child.content || 'Untitled Canvas'}
                                                             </p>
                                                         )}
@@ -450,8 +469,13 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 height: currentHeight,
                 zIndex: isResizing || isHovered ? 10 : 1,
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onMouseEnter={() => {
+                if (hoverLeaveTimer.current) clearTimeout(hoverLeaveTimer.current);
+                setIsHovered(true);
+            }}
+            onMouseLeave={() => {
+                hoverLeaveTimer.current = setTimeout(() => setIsHovered(false), 300);
+            }}
             className="group relative"
         >
             <div

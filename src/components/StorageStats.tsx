@@ -5,9 +5,10 @@ import { X, HardDrive, Database, Info, Activity } from 'lucide-react';
 
 interface StorageStatsProps {
     onClose: () => void;
+    onClearCanvas: () => void;
 }
 
-export const StorageStats: React.FC<StorageStatsProps> = ({ onClose }) => {
+export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanvas }) => {
     const [stats, setStats] = useState({
         totalUsed: 0,
         appUsed: 0,
@@ -150,7 +151,13 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 bg-white/5 border-t border-white/10 flex justify-end">
+                <div className="p-6 bg-white/5 border-t border-white/10 flex justify-between items-center">
+                    <button
+                        onClick={() => { onClearCanvas(); onClose(); }}
+                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold rounded-xl transition-all text-sm border border-red-500/20 hover:border-red-500/40"
+                    >
+                        Clear Canvas
+                    </button>
                     <button
                         onClick={onClose}
                         className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all text-sm border border-white/10 hover:border-white/20"

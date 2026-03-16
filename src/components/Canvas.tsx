@@ -399,7 +399,7 @@ export const Canvas: React.FC = () => {
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
                                 Thought Canvas
                             </h1>
-                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.0</span>
+                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.2</span>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -569,15 +569,10 @@ export const Canvas: React.FC = () => {
                     })()}
                 </div>
 
-                <button
-                    onClick={clearCanvas}
-                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center"
-                >
-                    Clear Canvas
-                </button>
+
             </div>
 
-            {showStats && <StorageStats onClose={() => setShowStats(false)} />}
+            {showStats && <StorageStats onClose={() => setShowStats(false)} onClearCanvas={clearCanvas} />}
 
             {currentItems.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
