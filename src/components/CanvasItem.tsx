@@ -4,7 +4,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag } from 'lucide-react';
+import { Priority } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
@@ -53,6 +54,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [isRenaming, setIsRenaming] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [showMoveInto, setShowMoveInto] = useState(false);
+    const [showPriority, setShowPriority] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -67,6 +69,15 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
     const dateStatus = item.date ? getDateStatus(item.date) : null;
     const dateLabel = item.date ? getRelativeLabel(item.date) : null;
+
+    const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; border: string; dot: string }> = {
+        'very-high': { label: 'Very High', color: 'text-red-400',    border: 'border-l-red-500',    dot: 'bg-red-500' },
+        'high':      { label: 'High',      color: 'text-orange-400', border: 'border-l-orange-500', dot: 'bg-orange-500' },
+        'medium':    { label: 'Medium',    color: 'text-yellow-400', border: 'border-l-yellow-500', dot: 'bg-yellow-500' },
+        'low':       { label: 'Low',       color: 'text-blue-400',   border: 'border-l-blue-500',   dot: 'bg-blue-500' },
+        'very-low':  { label: 'Very Low',  color: 'text-white/30',   border: 'border-l-white/20',   dot: 'bg-white/25' },
+    };
+    const priorityCfg = item.priority ? PRIORITY_CONFIG[item.priority] : null;
 
     useEffect(() => {
         if (!isDragging.current) motionX.set(item.x);
@@ -219,7 +230,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 onMouseDown={(e) => { if (e.target === e.currentTarget) setIsExpanded(false); }}
                             >
                                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                                <div className="relative z-10 w-[820px] max-w-[95vw] h-[520px] max-h-[85vh] glass-dark rounded-2xl shadow-2xl shadow-black/60 ring-1 ring-white/15 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                <div className="relative z-10 w-[1100px] max-w-[96vw] h-[700px] max-h-[92vh] glass-dark rounded-2xl shadow-2xl shadow-black/60 ring-1 ring-white/15 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
                                     {/* Header */}
                                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
                                         <div className="flex items-center gap-3 text-xs font-medium">
@@ -493,6 +504,14 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 }
             `}
             >
+                {/* Priority accent strip */}
+                {priorityCfg && (
+                    <div
+                        className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full z-20 ${priorityCfg.dot}`}
+                        style={{ opacity: item.priority === 'very-low' ? 0.4 : 0.85 }}
+                    />
+                )}
+
                 {/* Toolbar */}
                 {isHovered && !isResizing && (
                     <div className="absolute -top-10 left-0 flex items-center gap-1 p-1 glass rounded-lg shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2">
@@ -573,6 +592,48 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             value={item.date || ''}
                             onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
                         />
+
+                        <div className="w-[1px] h-4 bg-white/10" />
+
+                        {/* Priority picker */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowPriority((v) => !v)}
+                                className={`p-1.5 transition-colors flex items-center gap-0.5 ${item.priority ? priorityCfg!.color : 'text-white/40 hover:text-sky-400'}`}
+                                title={item.priority ? `Priority: ${priorityCfg!.label}` : 'Set priority'}
+                            >
+                                <Flag size={15} />
+                            </button>
+                            {showPriority && (
+                                <div
+                                    className="absolute top-full left-0 mt-1 z-[200] min-w-[130px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                    style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                                >
+                                    <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Priority</div>
+                                    {(Object.entries(PRIORITY_CONFIG) as [Priority, typeof PRIORITY_CONFIG[Priority]][]).map(([key, cfg]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => { onUpdate(item.id, { priority: item.priority === key ? undefined : key }); setShowPriority(false); }}
+                                            className={`w-full text-left px-3 py-2 text-xs hover:bg-white/8 transition-colors flex items-center gap-2 ${item.priority === key ? cfg.color + ' font-semibold' : 'text-white/60'}`}
+                                        >
+                                            <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                                            {cfg.label}
+                                        </button>
+                                    ))}
+                                    {item.priority && (
+                                        <>
+                                            <div className="border-t border-white/8 mx-2" />
+                                            <button
+                                                onClick={() => { onUpdate(item.id, { priority: undefined }); setShowPriority(false); }}
+                                                className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
+                                            >
+                                                Clear
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         <div className="w-[1px] h-4 bg-white/10" />
 

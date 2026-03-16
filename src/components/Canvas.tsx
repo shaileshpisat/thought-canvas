@@ -16,8 +16,11 @@ import {
     Upload,
     CalendarDays,
     ChevronLeft,
+    Search,
+    Settings,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
+import { SearchPanel } from './SearchPanel';
 
 import { findEmptyLocation } from '@/utils/canvasUtils';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
@@ -48,6 +51,8 @@ export const Canvas: React.FC = () => {
         isLoaded,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
+    const [showSearch, setShowSearch] = React.useState(false);
+    const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
@@ -216,13 +221,20 @@ export const Canvas: React.FC = () => {
     // Escape key to exit current sub-canvas level
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && navigationPathRef.current.length > 0) {
-                setNavigationPath((prev) => prev.slice(0, -1));
+            if (e.key === 'Escape') {
+                if (navigationPathRef.current.length > 0) {
+                    setNavigationPath((prev) => prev.slice(0, -1));
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                setShowSearch((v) => !v);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
 
     const handleDoubleClick = (e: React.MouseEvent) => {
         if (e.target === canvasRef.current || e.currentTarget === canvasRef.current) {
@@ -399,7 +411,7 @@ export const Canvas: React.FC = () => {
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
                                 Thought Canvas
                             </h1>
-                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.2</span>
+                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.7</span>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -413,26 +425,21 @@ export const Canvas: React.FC = () => {
                 </div>
 
                 <button
-                    onClick={() => setShowStats(true)}
+                    onClick={() => setShowSearch(true)}
                     className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
+                    title="Search (Ctrl+K)"
                 >
-                    <Activity size={12} />
-                    Stats
+                    <Search size={12} />
+                    Search
                 </button>
 
                 <button
-                    onClick={handleExport}
-                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center gap-2"
+                    onClick={() => setShowSettings(true)}
+                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
                 >
-                    <Download size={12} />
-                    Export
+                    <Settings size={12} />
+                    Settings
                 </button>
-
-                <label className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2 cursor-pointer">
-                    <Upload size={12} />
-                    Import
-                    <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
-                </label>
 
                 <div className="relative group/datebtn">
                     <button
@@ -573,6 +580,80 @@ export const Canvas: React.FC = () => {
             </div>
 
             {showStats && <StorageStats onClose={() => setShowStats(false)} onClearCanvas={clearCanvas} />}
+
+            {/* Settings Popup */}
+            {showSettings && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center"
+                    onClick={() => setShowSettings(false)}
+                >
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div
+                        className="relative w-80 rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 p-6 animate-in fade-in zoom-in-95 duration-150"
+                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-5">
+                            <div className="flex items-center gap-2">
+                                <Settings size={16} className="text-sky-400" />
+                                <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">Settings</h2>
+                            </div>
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors text-lg leading-none"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Data</p>
+
+                            <button
+                                onClick={() => { handleExport(); setShowSettings(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                            >
+                                <Download size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Export</div>
+                                    <div className="text-[10px] text-white/30">Save canvas as JSON file</div>
+                                </div>
+                            </button>
+
+                            <label className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-sky-400 hover:bg-sky-500/10 transition-all cursor-pointer">
+                                <Upload size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Import</div>
+                                    <div className="text-[10px] text-white/30">Merge from JSON file</div>
+                                </div>
+                                <input ref={importRef} type="file" accept=".json" className="hidden" onChange={(e) => { handleImport(e); setShowSettings(false); }} />
+                            </label>
+
+                            <div className="h-px bg-white/10 my-2" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Info</p>
+
+                            <button
+                                onClick={() => { setShowStats(true); setShowSettings(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                            >
+                                <Activity size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Storage Stats</div>
+                                    <div className="text-[10px] text-white/30">View localStorage usage</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showSearch && (
+                <SearchPanel
+                    allItems={state.items}
+                    onNavigate={(path) => setNavigationPath(path)}
+                    onClose={() => setShowSearch(false)}
+                />
+            )}
 
             {currentItems.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

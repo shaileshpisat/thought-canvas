@@ -1,5 +1,7 @@
 export type ItemType = 'text' | 'image' | 'link' | 'canvas';
 
+export type Priority = 'very-high' | 'high' | 'medium' | 'low' | 'very-low';
+
 export interface CanvasItem {
   id: string;
   type: ItemType;
@@ -9,6 +11,7 @@ export interface CanvasItem {
   height?: number;
   content: string; // text content, image URL, link URL, or canvas name
   date?: string; // ISO date string YYYY-MM-DD
+  priority?: Priority;
   children?: CanvasItem[]; // only for type 'canvas'
   metadata?: {
     title?: string;
