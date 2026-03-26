@@ -22,6 +22,7 @@ import {
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
+import { DateFilterPanel } from './DateFilterPanel';
 
 import { findEmptyLocation } from '@/utils/canvasUtils';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
@@ -59,7 +60,7 @@ export const Canvas: React.FC = () => {
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
-    const [filterDate, setFilterDate] = React.useState<string | null>(null);
+    const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
         const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -133,9 +134,6 @@ export const Canvas: React.FC = () => {
     const currentItemsRef = useRef<CanvasItem[]>([]);
 
     const currentItems = getItemsAtPath(state.items, navigationPath);
-    const displayedItems = filterDate
-        ? currentItems.filter((item) => item.date === filterDate)
-        : currentItems;
     currentItemsRef.current = currentItems;
 
     const breadcrumbLabels = getBreadcrumbLabels(state.items, navigationPath);
@@ -304,7 +302,7 @@ export const Canvas: React.FC = () => {
                 className="absolute inset-0 w-full h-full"
                 onDoubleClick={handleDoubleClick}
             >
-                {displayedItems.map((item) => (
+                {currentItems.map((item) => (
                     <CanvasItemComponent
                         key={item.id}
                         item={item}
@@ -587,21 +585,19 @@ export const Canvas: React.FC = () => {
                                         const ds = getDs(day);
                                         const status = datesMap.get(ds);
                                         const isToday = ds === todayStr;
-                                        const isFiltered = filterDate === ds;
                                         return (
                                             <div
                                                 key={day}
                                                 className={`flex flex-col items-center justify-center h-7 ${status ? 'cursor-pointer' : ''}`}
                                                 onClick={() => {
                                                     if (status) {
-                                                        setFilterDate(isFiltered ? null : ds);
+                                                        setDateFilterDate(ds);
                                                         setShowDateCalendar(false);
                                                     }
                                                 }}
                                             >
                                                 <span className={`text-[11px] w-5 h-5 flex items-center justify-center rounded-full font-medium transition-all
-                                                    ${isFiltered ? 'bg-white/20 ring-2 ring-white/60 text-white scale-110' :
-                                                      status === 'today' ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50' :
+                                                    ${status === 'today' ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50' :
                                                       status === 'past-old' || status === 'past-week' ? 'bg-red-500/25 text-red-300 ring-1 ring-red-500/40' :
                                                       status === 'future' ? 'bg-sky-500/25 text-sky-300 ring-1 ring-sky-500/40' :
                                                       isToday ? 'ring-1 ring-white/25 text-white/70' :
@@ -710,18 +706,13 @@ export const Canvas: React.FC = () => {
                 />
             )}
 
-            {/* Date filter banner */}
-            {filterDate && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white/80 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150"
-                    style={{ background: 'rgba(14, 20, 40, 0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
-                    Filtered: {filterDate}
-                    <button
-                        onClick={() => setFilterDate(null)}
-                        className="ml-1 text-white/40 hover:text-white transition-colors"
-                        title="Clear filter"
-                    >✕</button>
-                </div>
+            {dateFilterDate && (
+                <DateFilterPanel
+                    allItems={state.items}
+                    initialDate={dateFilterDate}
+                    onNavigate={(path) => setNavigationPath(path)}
+                    onClose={() => setDateFilterDate(null)}
+                />
             )}
 
             {currentItems.length === 0 && (
