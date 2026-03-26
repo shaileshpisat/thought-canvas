@@ -19,6 +19,7 @@ import {
     Search,
     Settings,
     LayoutGrid,
+    Undo2,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -64,6 +65,9 @@ export const Canvas: React.FC = () => {
     const [showChangelog, setShowChangelog] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
+    const [preOrganizeSnapshot, setPreOrganizeSnapshot] = React.useState<
+        { id: string; x: number; y: number; width?: number; height?: number }[] | null
+    >(null);
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
         const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
     });
@@ -446,11 +450,18 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={() => {
+                        // Snapshot current positions/sizes before organizing
+                        setPreOrganizeSnapshot(
+                            currentItems.map(({ id, x, y, width, height }) => ({ id, x, y, width, height }))
+                        );
                         const positions = organizeItems(currentItems);
                         positions.forEach(({ id, x, y, width, height }) => {
                             moveItem(id, x, y);
-                            if (width !== undefined && height !== undefined) {
-                                updateItem(id, { width, height });
+                            if (width !== undefined || height !== undefined) {
+                                updateItem(id, {
+                                    ...(width !== undefined  ? { width }  : {}),
+                                    ...(height !== undefined ? { height } : {}),
+                                });
                             }
                         });
                     }}
@@ -460,6 +471,26 @@ export const Canvas: React.FC = () => {
                     <LayoutGrid size={20} className="text-white/60 group-hover:text-teal-400 transition-colors" />
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Organize</span>
                 </button>
+
+                {preOrganizeSnapshot && (
+                    <>
+                        <div className="w-[1px] h-10 bg-white/10 mx-1" />
+                        <button
+                            onClick={() => {
+                                preOrganizeSnapshot.forEach(({ id, x, y, width, height }) => {
+                                    moveItem(id, x, y);
+                                    updateItem(id, { width, height });
+                                });
+                                setPreOrganizeSnapshot(null);
+                            }}
+                            className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                            title="Undo organize"
+                        >
+                            <Undo2 size={20} className="text-white/60 group-hover:text-orange-400 transition-colors" />
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Undo</span>
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* App Header */}
@@ -757,7 +788,7 @@ export const Canvas: React.FC = () => {
                         </div>
                         <div className="overflow-y-auto px-5 py-4 space-y-5 text-sm">
                             {[
-                                { version: 'v1.4.3', changes: ['Added version changelog popup — click the version number to see what\'s new.'] },
+                                { version: 'v1.4.3', changes: ['Added Organize button — arranges all blocks in a clean grid that fits the visible screen, shrinking oversized items only when needed.', 'Undo button appears after organizing, letting you restore the previous layout instantly.', 'Added version changelog popup — click the version number to see what\'s new.'] },
                                 { version: 'v1.4.1', changes: ['Added date filter panel to browse and filter canvas items by date.', 'Search panel improvements for faster discovery of notes and links.'] },
                                 { version: 'v1.4.0', changes: ['Introduced folder/path-based organization for canvas items.', 'Added breadcrumb navigation to move between folders.'] },
                                 { version: 'v1.3.0', changes: ['Added settings panel with canvas customization options.', 'Export and import canvas data as JSON for backup and transfer.'] },
