@@ -18,13 +18,14 @@ import {
     ChevronLeft,
     Search,
     Settings,
+    LayoutGrid,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
 import { DateFilterPanel } from './DateFilterPanel';
 
-import { findEmptyLocation } from '@/utils/canvasUtils';
+import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
@@ -60,6 +61,7 @@ export const Canvas: React.FC = () => {
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
+    const [showChangelog, setShowChangelog] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
@@ -439,6 +441,25 @@ export const Canvas: React.FC = () => {
                     <Layers size={20} className="text-white/60 group-hover:text-purple-400 transition-colors" />
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Canvas</span>
                 </button>
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
+                <button
+                    onClick={() => {
+                        const positions = organizeItems(currentItems);
+                        positions.forEach(({ id, x, y, width, height }) => {
+                            moveItem(id, x, y);
+                            if (width !== undefined && height !== undefined) {
+                                updateItem(id, { width, height });
+                            }
+                        });
+                    }}
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                    title="Organize items into a clean grid"
+                >
+                    <LayoutGrid size={20} className="text-white/60 group-hover:text-teal-400 transition-colors" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Organize</span>
+                </button>
             </div>
 
             {/* App Header */}
@@ -452,7 +473,10 @@ export const Canvas: React.FC = () => {
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
                                 Thought Canvas
                             </h1>
-                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.4.1</span>
+                            <button
+                                onClick={() => setShowChangelog(true)}
+                                className="text-[10px] font-mono text-white/25 tracking-wider hover:text-sky-400/70 transition-colors cursor-pointer"
+                            >v1.4.3</button>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -713,6 +737,49 @@ export const Canvas: React.FC = () => {
                     onNavigate={(path) => setNavigationPath(path)}
                     onClose={() => setDateFilterDate(null)}
                 />
+            )}
+
+            {showChangelog && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center"
+                    onClick={() => setShowChangelog(false)}
+                >
+                    <div
+                        className="bg-[#0f172a] rounded-2xl border border-white/10 shadow-2xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                            <h2 className="text-sm font-semibold text-white/80 tracking-wide">What&apos;s Changed</h2>
+                            <button
+                                onClick={() => setShowChangelog(false)}
+                                className="text-white/30 hover:text-white/70 transition-colors text-lg leading-none"
+                            >✕</button>
+                        </div>
+                        <div className="overflow-y-auto px-5 py-4 space-y-5 text-sm">
+                            {[
+                                { version: 'v1.4.3', changes: ['Added version changelog popup — click the version number to see what\'s new.'] },
+                                { version: 'v1.4.1', changes: ['Added date filter panel to browse and filter canvas items by date.', 'Search panel improvements for faster discovery of notes and links.'] },
+                                { version: 'v1.4.0', changes: ['Introduced folder/path-based organization for canvas items.', 'Added breadcrumb navigation to move between folders.'] },
+                                { version: 'v1.3.0', changes: ['Added settings panel with canvas customization options.', 'Export and import canvas data as JSON for backup and transfer.'] },
+                                { version: 'v1.2.0', changes: ['Link cards now show rich previews with title, description, and image from the linked page.', 'Paste a URL directly onto the canvas to create a link card instantly.'] },
+                                { version: 'v1.1.0', changes: ['Images can now be added by pasting from clipboard or uploading a file.', 'Canvas background color can be customized.'] },
+                                { version: 'v1.0.0', changes: ['Initial release: freeform canvas for text notes, images, and links.', 'Drag cards freely around the canvas and double-click to create new notes.', 'All data saved locally in your browser — no account needed.'] },
+                            ].map(({ version, changes }) => (
+                                <div key={version}>
+                                    <div className="text-[11px] font-mono text-sky-400/70 font-semibold mb-1.5 tracking-wider">{version}</div>
+                                    <ul className="space-y-1">
+                                        {changes.map((c, i) => (
+                                            <li key={i} className="text-[13px] text-white/50 flex gap-2">
+                                                <span className="text-white/20 shrink-0">•</span>
+                                                <span>{c}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {currentItems.length === 0 && (
