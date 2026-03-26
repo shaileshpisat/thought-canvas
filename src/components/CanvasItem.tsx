@@ -4,11 +4,39 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch } from 'lucide-react';
 import { Priority } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
+import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
+
+/** Resolves an image item's content to a renderable src string.
+ *  - bare base64 / URL: returned as-is
+ *  - "idb:<id>" sentinel: fetched from IndexedDB and converted to an object URL
+ */
+function useImageSrc(content: string): string {
+    const [src, setSrc] = useState<string>(() => (isIdbSentinel(content) ? '' : content));
+
+    useEffect(() => {
+        if (!isIdbSentinel(content)) {
+            setSrc(content);
+            return;
+        }
+        let objectUrl: string | null = null;
+        getImage(sentinelId(content)).then((blob) => {
+            if (blob) {
+                objectUrl = URL.createObjectURL(blob);
+                setSrc(objectUrl);
+            }
+        });
+        return () => {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+        };
+    }, [content]);
+
+    return src;
+}
 
 interface Props {
     item: ICanvasItem;
@@ -46,7 +74,15 @@ const MD_COMPONENTS = {
     ),
 };
 
+const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
+    const src = useImageSrc(content);
+    return src
+        ? <img src={src} alt="" className="w-full h-full object-cover opacity-70" />
+        : <div className="w-full h-full bg-white/5 animate-pulse" />;
+};
+
 export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto }) => {
+    const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -143,7 +179,11 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
         const onPointerUp = (ev: PointerEvent) => {
             const newW = Math.max(MIN_WIDTH, startW + ev.clientX - startClientX);
             const newH = Math.max(MIN_HEIGHT, startH + ev.clientY - startClientY);
-            onUpdate(item.id, { width: newW, height: newH });
+            const updates: Partial<ICanvasItem> = { width: newW, height: newH };
+            if (item.type === 'image' && item.metadata?.naturalSize) {
+                updates.metadata = { ...item.metadata, naturalSize: false };
+            }
+            onUpdate(item.id, updates);
             setLocalSize(null);
             setIsResizing(false);
             window.removeEventListener('pointermove', onPointerMove);
@@ -271,12 +311,26 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 );
 
             case 'image':
-                return (
+                return imageSrc ? (
                     <img
-                        src={item.content}
+                        src={imageSrc}
                         alt="Canvas item"
-                        className="w-full h-full object-cover rounded-sm pointer-events-none"
+                        className={`w-full h-full rounded-sm pointer-events-none ${item.metadata?.naturalSize ? 'object-contain' : 'object-cover'}`}
+                        onLoad={(e) => {
+                            if (item.metadata?.naturalSize) {
+                                const img = e.currentTarget;
+                                const nw = img.naturalWidth;
+                                const nh = img.naturalHeight;
+                                if (nw > 0 && nh > 0) {
+                                    const maxW = Math.min(nw, 900);
+                                    const scale = maxW / nw;
+                                    onUpdate(item.id, { width: Math.round(nw * scale), height: Math.round(nh * scale) });
+                                }
+                            }
+                        }}
                     />
+                ) : (
+                    <div className="w-full h-full rounded-sm bg-white/5 animate-pulse" />
                 );
 
             case 'link':
@@ -390,7 +444,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                             </div>
                                                         )}
                                                         {child.type === 'image' && (
-                                                            <img src={child.content} alt="" className="w-full h-full object-cover opacity-70" />
+                                                            <ChildImageThumb content={child.content} />
                                                         )}
                                                         {child.type === 'link' && (
                                                             <p className="text-amber-300/70 p-1.5 text-[13px] leading-snug truncate font-sans">
@@ -556,6 +610,16 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     <ArrowRight size={16} />
                                 </button>
                             </>
+                        )}
+
+                        {item.type === 'image' && (
+                            <button
+                                onClick={() => onUpdate(item.id, { metadata: { ...item.metadata, naturalSize: !item.metadata?.naturalSize } })}
+                                className={`p-1.5 transition-colors ${item.metadata?.naturalSize ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                title={item.metadata?.naturalSize ? 'Natural size (on) — click to fit card' : 'Show at natural dimensions'}
+                            >
+                                <ScanSearch size={16} />
+                            </button>
                         )}
 
                         <div className="w-[1px] h-4 bg-white/10" />

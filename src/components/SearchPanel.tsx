@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Search, X, Type, Image as ImageIcon, Link as LinkIcon, Layers, ChevronRight, Home } from 'lucide-react';
 import { CanvasItem } from '@/types/canvas';
 
@@ -67,7 +67,7 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
     const inputRef = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         inputRef.current?.focus();
     }, []);
 
@@ -122,6 +122,7 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                     <Search size={16} className="text-white/40 shrink-0" />
                     <input
                         ref={inputRef}
+                        autoFocus
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}

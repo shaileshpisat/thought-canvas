@@ -20,6 +20,7 @@ export interface CanvasItem {
     color?: string;
     locked?: boolean;
     zIndex?: number;
+    naturalSize?: boolean;
   };
 }
 

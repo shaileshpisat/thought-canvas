@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { X, HardDrive, Database, Info, Activity } from 'lucide-react';
+import { useStorageMonitor } from '@/hooks/useStorageMonitor';
+import { STORAGE_LIMIT_BYTES, STORAGE_WARN_THRESHOLD } from '@/config/storageConfig';
 
 interface StorageStatsProps {
     onClose: () => void;
@@ -9,53 +11,17 @@ interface StorageStatsProps {
 }
 
 export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanvas }) => {
-    const [stats, setStats] = useState({
-        totalUsed: 0,
-        appUsed: 0,
-        available: 5 * 1024 * 1024, // Standard 5MB limit
-        itemCount: 0
-    });
+    const { usage, quota, fraction, loading, refresh } = useStorageMonitor();
 
-    useEffect(() => {
-        const calculateUsage = () => {
-            let total = 0;
-            let app = 0;
-            const APP_KEY = 'thought-canvas-data';
+    // Re-fetch when the modal is opened so data is always current
+    useEffect(() => { refresh(); }, [refresh]);
 
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key) {
-                    const value = localStorage.getItem(key) || '';
-                    const size = (key.length + value.length) * 2; // UTF-16 characters are 2 bytes
-                    total += size;
-                    if (key === APP_KEY) {
-                        app = size;
-                    }
-                }
-            }
-
-            // Estimate item count from app data
-            let items = 0;
-            const appData = localStorage.getItem(APP_KEY);
-            if (appData) {
-                try {
-                    const parsed = JSON.parse(appData);
-                    items = parsed.items?.length || 0;
-                } catch (e) {
-                    console.error('Failed to parse app data for stats', e);
-                }
-            }
-
-            setStats(prev => ({
-                ...prev,
-                totalUsed: total,
-                appUsed: app,
-                itemCount: items
-            }));
-        };
-
-        calculateUsage();
-    }, []);
+    // Item count from localStorage canvas data
+    let itemCount = 0;
+    try {
+        const raw = localStorage.getItem('thought-canvas-data');
+        if (raw) itemCount = JSON.parse(raw)?.items?.length ?? 0;
+    } catch { /* ignore */ }
 
     const formatSize = (bytes: number) => {
         if (bytes === 0) return '0 B';
@@ -65,8 +31,11 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    const percentage = Math.min((stats.totalUsed / stats.available) * 100, 100);
-    const appPercentage = (stats.appUsed / stats.totalUsed) * 100 || 0;
+    const percentage = (fraction * 100).toFixed(1);
+    const isWarning = fraction >= STORAGE_WARN_THRESHOLD;
+    const barColor = isWarning
+        ? 'bg-gradient-to-r from-amber-500 to-red-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+        : 'bg-gradient-to-r from-sky-500 to-indigo-500 shadow-[0_0_10px_rgba(56,189,248,0.5)]';
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -79,7 +48,11 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
                         </div>
                         <div>
                             <h2 className="text-xl font-display font-bold text-white">Storage Statistics</h2>
-                            <p className="text-xs text-white/40 font-medium">Local Data Usage</p>
+                            <p className="text-xs text-white/40 font-medium">
+                                {STORAGE_LIMIT_BYTES !== null
+                                    ? `App limit: ${formatSize(STORAGE_LIMIT_BYTES)}`
+                                    : 'Using browser quota'}
+                            </p>
                         </div>
                     </div>
                     <button
@@ -92,21 +65,23 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
 
                 {/* Content */}
                 <div className="p-8 space-y-8">
-                    {/* Progress Bar Container */}
+                    {/* Progress Bar */}
                     <div className="space-y-3">
                         <div className="flex justify-between items-end">
-                            <span className="text-sm font-medium text-white/60">Total Capacity Used</span>
-                            <span className="text-sm font-bold text-sky-400">{percentage.toFixed(1)}%</span>
+                            <span className="text-sm font-medium text-white/60">Storage Used</span>
+                            <span className={`text-sm font-bold ${isWarning ? 'text-amber-400' : 'text-sky-400'}`}>
+                                {loading ? '…' : `${percentage}%`}
+                            </span>
                         </div>
                         <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/10">
                             <div
-                                className="h-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-1000 ease-out rounded-full shadow-[0_0_10px_rgba(56,189,248,0.5)]"
-                                style={{ width: `${percentage}%` }}
+                                className={`h-full transition-all duration-1000 ease-out rounded-full ${barColor}`}
+                                style={{ width: loading ? '0%' : `${fraction * 100}%` }}
                             />
                         </div>
                         <div className="flex justify-between text-[10px] uppercase tracking-wider font-bold text-white/30">
-                            <span>0 MB</span>
-                            <span>5 MB Limit</span>
+                            <span>0</span>
+                            <span>{formatSize(quota)} Limit</span>
                         </div>
                     </div>
 
@@ -115,39 +90,48 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
                         <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
                             <div className="flex items-center gap-2 text-white/40">
                                 <Database size={14} />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">App Data</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Total Used</span>
                             </div>
                             <div className="text-lg font-display font-bold text-white">
-                                {formatSize(stats.appUsed)}
+                                {loading ? '…' : formatSize(usage)}
                             </div>
                             <div className="text-[10px] text-white/30 flex items-center gap-1">
                                 <span className="w-1 h-1 rounded-full bg-sky-400"></span>
-                                {stats.itemCount} canvas items
+                                All storage for this app
                             </div>
                         </div>
 
                         <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
                             <div className="flex items-center gap-2 text-white/40">
                                 <HardDrive size={14} />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Total Used</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Canvas Items</span>
                             </div>
                             <div className="text-lg font-display font-bold text-white">
-                                {formatSize(stats.totalUsed)}
+                                {itemCount}
                             </div>
                             <div className="text-[10px] text-white/30 flex items-center gap-1">
                                 <span className="w-1 h-1 rounded-full bg-indigo-400"></span>
-                                {appPercentage.toFixed(0)}% from this app
+                                {formatSize(quota - usage)} remaining
                             </div>
                         </div>
                     </div>
 
-                    {/* Info Box */}
-                    <div className="flex gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-                        <Info size={18} className="text-amber-400 shrink-0" />
-                        <p className="text-xs text-amber-200/70 leading-relaxed">
-                            Data is stored locally in your browser. Clearing your history or site data may remove your thoughts and images.
-                        </p>
-                    </div>
+                    {/* Info / Warning Box */}
+                    {isWarning ? (
+                        <div className="flex gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20">
+                            <Info size={18} className="text-red-400 shrink-0" />
+                            <p className="text-xs text-red-200/70 leading-relaxed">
+                                Storage is almost full ({percentage}% used). Delete large image items or clear the canvas to free up space.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                            <Info size={18} className="text-amber-400 shrink-0" />
+                            <p className="text-xs text-amber-200/70 leading-relaxed">
+                                Data is stored locally in your browser. Clearing your browser history or site data may remove your thoughts and images.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

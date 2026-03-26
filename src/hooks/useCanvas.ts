@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CanvasItem, CanvasState } from '../types/canvas';
+import {
+  isBase64DataUrl,
+  isIdbSentinel,
+  makeIdbSentinel,
+  sentinelId,
+  base64ToBlob,
+  putImage,
+  deleteImage,
+  offloadAllImagesInTree,
+} from '@/utils/imageDB';
+import { migrateImagesToIDB } from '@/utils/migrateImagesToIDB';
 
 const mergeCanvasItems = (existingItems: CanvasItem[], importedItems: CanvasItem[]): CanvasItem[] => {
   const importedIds = new Set(importedItems.map((i) => i.id));
-  // Re-ID any existing items whose IDs collide with an imported item
   const reIdedExisting = existingItems.map((item) =>
     importedIds.has(item.id) ? { ...item, id: crypto.randomUUID() } : item
   );
@@ -42,20 +52,35 @@ const updateItemsAtPath = (
   );
 };
 
+/** Move a base64 image to IDB and return the sentinel, or return content unchanged. */
+async function offloadImageIfNeeded(
+  item: Omit<CanvasItem, 'id'> & { id?: string }
+): Promise<typeof item> {
+  if (item.type !== 'image' || !isBase64DataUrl(item.content)) return item;
+  const id = crypto.randomUUID();
+  const blob = await base64ToBlob(item.content);
+  await putImage(id, blob);
+  return { ...item, content: makeIdbSentinel(id) };
+}
+
 export const useCanvas = () => {
   const [state, setState] = useState<CanvasState>(initialState);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Run migration then load state
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setState(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to load canvas state', e);
+    (async () => {
+      await migrateImagesToIDB();
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setState(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to load canvas state', e);
+        }
       }
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    })();
   }, []);
 
   useEffect(() => {
@@ -65,13 +90,14 @@ export const useCanvas = () => {
   }, [state, isLoaded]);
 
   const addItemAtPath = useCallback(
-    (path: string[], item: Omit<CanvasItem, 'id'> & { id?: string }) => {
-      const id = item.id || crypto.randomUUID();
+    async (path: string[], item: Omit<CanvasItem, 'id'> & { id?: string }): Promise<string> => {
+      const sanitised = await offloadImageIfNeeded(item);
+      const id = sanitised.id || crypto.randomUUID();
       setState((prev) => ({
         ...prev,
         items: updateItemsAtPath(prev.items, path, (items) => [
           ...items,
-          { ...item, id },
+          { ...sanitised, id },
         ]),
       }));
       return id;
@@ -92,12 +118,20 @@ export const useCanvas = () => {
   );
 
   const removeItemAtPath = useCallback((path: string[], id: string) => {
-    setState((prev) => ({
-      ...prev,
-      items: updateItemsAtPath(prev.items, path, (items) =>
-        items.filter((item) => item.id !== id)
-      ),
-    }));
+    setState((prev) => {
+      // Clean up IDB blob if this is an image item with a sentinel
+      const targets = getItemsAtPath(prev.items, path);
+      const dying = targets.find((i) => i.id === id);
+      if (dying?.type === 'image' && isIdbSentinel(dying.content)) {
+        deleteImage(sentinelId(dying.content)); // fire-and-forget
+      }
+      return {
+        ...prev,
+        items: updateItemsAtPath(prev.items, path, (items) =>
+          items.filter((item) => item.id !== id)
+        ),
+      };
+    });
   }, []);
 
   const moveItemAtPath = useCallback(
@@ -159,10 +193,11 @@ export const useCanvas = () => {
     setState(newState);
   }, []);
 
-  const mergeItems = useCallback((importedItems: CanvasItem[]) => {
+  const mergeItems = useCallback(async (importedItems: CanvasItem[]) => {
+    const sanitised = await offloadAllImagesInTree(importedItems);
     setState((prev) => ({
       ...prev,
-      items: mergeCanvasItems(prev.items, importedItems),
+      items: mergeCanvasItems(prev.items, sanitised),
     }));
   }, []);
 

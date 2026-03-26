@@ -20,11 +20,16 @@ import {
     Settings,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
+import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
 
 import { findEmptyLocation } from '@/utils/canvasUtils';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
+import { useStorageMonitor } from '@/hooks/useStorageMonitor';
+import { useImageStorageTracker } from '@/hooks/useImageStorageTracker';
+import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
+import type { CanvasItem as ICanvasItem } from '@/types/canvas';
 
 const getBreadcrumbLabels = (items: CanvasItem[], path: string[]): string[] => {
     const labels: string[] = [];
@@ -54,15 +59,43 @@ export const Canvas: React.FC = () => {
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
+    const [filterDate, setFilterDate] = React.useState<string | null>(null);
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
         const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
     });
+    const { refresh: refreshStorage } = useStorageMonitor();
+    const { trackImageAdded } = useImageStorageTracker(refreshStorage);
+
     const canvasRef = useRef<HTMLDivElement>(null);
     const importRef = useRef<HTMLInputElement>(null);
 
-    const handleExport = () => {
-        const json = JSON.stringify(state, null, 2);
+    /** Recursively re-hydrates IDB sentinel strings back to base64 data URLs for export. */
+    const rehydrateItemsForExport = async (items: ICanvasItem[]): Promise<ICanvasItem[]> =>
+        Promise.all(
+            items.map(async (item) => {
+                const children = item.children
+                    ? await rehydrateItemsForExport(item.children)
+                    : undefined;
+                if (item.type === 'image' && isIdbSentinel(item.content)) {
+                    const iblob = await getImage(sentinelId(item.content));
+                    if (iblob) {
+                        const base64 = await new Promise<string>((res) => {
+                            const fr = new FileReader();
+                            fr.onload = () => res(fr.result as string);
+                            fr.readAsDataURL(iblob);
+                        });
+                        return { ...item, content: base64, ...(children ? { children } : {}) };
+                    }
+                }
+                return children ? { ...item, children } : item;
+            })
+        );
+
+    const handleExport = async () => {
+        const rehydrated = await rehydrateItemsForExport(state.items);
+        const exportState = { ...state, items: rehydrated };
+        const json = JSON.stringify(exportState, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -95,9 +128,14 @@ export const Canvas: React.FC = () => {
     // Refs so paste handler never captures stale values
     const navigationPathRef = useRef(navigationPath);
     navigationPathRef.current = navigationPath;
+    const showSearchRef = useRef(showSearch);
+    showSearchRef.current = showSearch;
     const currentItemsRef = useRef<CanvasItem[]>([]);
 
     const currentItems = getItemsAtPath(state.items, navigationPath);
+    const displayedItems = filterDate
+        ? currentItems.filter((item) => item.date === filterDate)
+        : currentItems;
     currentItemsRef.current = currentItems;
 
     const breadcrumbLabels = getBreadcrumbLabels(state.items, navigationPath);
@@ -179,7 +217,9 @@ export const Canvas: React.FC = () => {
                                 y,
                                 width: 300,
                                 height: 200,
+                                metadata: { naturalSize: true },
                             });
+                            trackImageAdded();
                         };
                         reader.readAsDataURL(file);
                     }
@@ -191,15 +231,14 @@ export const Canvas: React.FC = () => {
                         const isUrl = /^https?:\/\//.test(trimmedText);
                         if (isUrl) {
                             const { x, y } = findEmptyLocation(currentItemsRef.current, 300, 280);
-                            const id = addItemAtPath(navigationPathRef.current, {
+                            addItemAtPath(navigationPathRef.current, {
                                 type: 'link',
                                 content: trimmedText,
                                 x,
                                 y,
                                 width: 300,
                                 height: 280,
-                            });
-                            fetchMetadata(trimmedText, id);
+                            }).then((id) => fetchMetadata(trimmedText, id));
                         } else {
                             const { x, y } = findEmptyLocation(currentItemsRef.current, 240, 120);
                             addItemAtPath(navigationPathRef.current, {
@@ -222,6 +261,7 @@ export const Canvas: React.FC = () => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
+                if (showSearchRef.current) return; // let SearchPanel handle its own Escape
                 if (navigationPathRef.current.length > 0) {
                     setNavigationPath((prev) => prev.slice(0, -1));
                 }
@@ -264,7 +304,7 @@ export const Canvas: React.FC = () => {
                 className="absolute inset-0 w-full h-full"
                 onDoubleClick={handleDoubleClick}
             >
-                {currentItems.map((item) => (
+                {displayedItems.map((item) => (
                     <CanvasItemComponent
                         key={item.id}
                         item={item}
@@ -345,7 +385,10 @@ export const Canvas: React.FC = () => {
                                         x,
                                         y,
                                         width: 300,
+                                        height: 200,
+                                        metadata: { naturalSize: true },
                                     });
+                                    trackImageAdded();
                                 };
                                 reader.readAsDataURL(file);
                             }
@@ -361,7 +404,7 @@ export const Canvas: React.FC = () => {
                         if (url) {
                             const trimmedUrl = url.trim();
                             const { x, y } = findEmptyLocation(currentItems, 300, 280);
-                            const id = addItem({
+                            const id = await addItem({
                                 type: 'link',
                                 content: trimmedUrl,
                                 x,
@@ -411,7 +454,7 @@ export const Canvas: React.FC = () => {
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
                                 Thought Canvas
                             </h1>
-                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.2.7</span>
+                            <span className="text-[10px] font-mono text-white/25 tracking-wider">v1.4.1</span>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -544,10 +587,21 @@ export const Canvas: React.FC = () => {
                                         const ds = getDs(day);
                                         const status = datesMap.get(ds);
                                         const isToday = ds === todayStr;
+                                        const isFiltered = filterDate === ds;
                                         return (
-                                            <div key={day} className="flex flex-col items-center justify-center h-7">
-                                                <span className={`text-[11px] w-5 h-5 flex items-center justify-center rounded-full font-medium
-                                                    ${status === 'today' ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50' :
+                                            <div
+                                                key={day}
+                                                className={`flex flex-col items-center justify-center h-7 ${status ? 'cursor-pointer' : ''}`}
+                                                onClick={() => {
+                                                    if (status) {
+                                                        setFilterDate(isFiltered ? null : ds);
+                                                        setShowDateCalendar(false);
+                                                    }
+                                                }}
+                                            >
+                                                <span className={`text-[11px] w-5 h-5 flex items-center justify-center rounded-full font-medium transition-all
+                                                    ${isFiltered ? 'bg-white/20 ring-2 ring-white/60 text-white scale-110' :
+                                                      status === 'today' ? 'bg-green-500/30 text-green-300 ring-1 ring-green-500/50' :
                                                       status === 'past-old' || status === 'past-week' ? 'bg-red-500/25 text-red-300 ring-1 ring-red-500/40' :
                                                       status === 'future' ? 'bg-sky-500/25 text-sky-300 ring-1 ring-sky-500/40' :
                                                       isToday ? 'ring-1 ring-white/25 text-white/70' :
@@ -579,6 +633,7 @@ export const Canvas: React.FC = () => {
 
             </div>
 
+            <StorageWarningBanner onOpenStats={() => setShowStats(true)} />
             {showStats && <StorageStats onClose={() => setShowStats(false)} onClearCanvas={clearCanvas} />}
 
             {/* Settings Popup */}
@@ -610,7 +665,7 @@ export const Canvas: React.FC = () => {
                             <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Data</p>
 
                             <button
-                                onClick={() => { handleExport(); setShowSettings(false); }}
+                                onClick={async () => { await handleExport(); setShowSettings(false); }}
                                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
                             >
                                 <Download size={16} className="shrink-0" />
@@ -653,6 +708,20 @@ export const Canvas: React.FC = () => {
                     onNavigate={(path) => setNavigationPath(path)}
                     onClose={() => setShowSearch(false)}
                 />
+            )}
+
+            {/* Date filter banner */}
+            {filterDate && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[150] flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white/80 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150"
+                    style={{ background: 'rgba(14, 20, 40, 0.92)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+                    Filtered: {filterDate}
+                    <button
+                        onClick={() => setFilterDate(null)}
+                        className="ml-1 text-white/40 hover:text-white transition-colors"
+                        title="Clear filter"
+                    >✕</button>
+                </div>
             )}
 
             {currentItems.length === 0 && (
