@@ -105,61 +105,89 @@ export const useCanvas = () => {
     []
   );
 
-  const updateItemAtPath = useCallback(
-    (path: string[], id: string, updates: Partial<CanvasItem>, historyActionLabel?: string) => {
+  const batchUpdateAtPath = useCallback(
+    (
+      path: string[],
+      updatesMap: Record<string, Partial<CanvasItem>>,
+      options?: { silent?: boolean; historyActionLabel?: string }
+    ) => {
       setState((prev) => ({
         ...prev,
         items: updateItemsAtPath(prev.items, path, (items) =>
           items.map((item) => {
-            if (item.id === id) {
+            const updates = updatesMap[item.id];
+            if (updates) {
               const now = Date.now();
               const history = [...(item.history ?? [])];
-              const pushHistory = (type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => {
-                history.push({ id: crypto.randomUUID(), type, action, timestamp: now, ...(snapshot ? { snapshot } : {}) });
+              const pushHistory = (
+                type: CanvasHistoryEntry['type'],
+                action: string,
+                snapshot?: string
+              ) => {
+                history.push({
+                  id: crypto.randomUUID(),
+                  type,
+                  action,
+                  timestamp: now,
+                  ...(snapshot ? { snapshot } : {}),
+                });
               };
 
-              // Tags
-              if (updates.tags) {
-                const oldTags = item.tags ?? [];
-                const newTags = updates.tags;
-                newTags.filter((t) => !oldTags.includes(t)).forEach((t) => pushHistory('tag', `Added tag: ${t}`));
-                oldTags.filter((t) => !newTags.includes(t)).forEach((t) => pushHistory('tag', `Removed tag: ${t}`));
-              }
+              if (!options?.silent) {
+                // Tags
+                if (updates.tags) {
+                  const oldTags = item.tags ?? [];
+                  const newTags = updates.tags;
+                  newTags
+                    .filter((t) => !oldTags.includes(t))
+                    .forEach((t) => pushHistory('tag', `Added tag: ${t}`));
+                  oldTags
+                    .filter((t) => !newTags.includes(t))
+                    .forEach((t) => pushHistory('tag', `Removed tag: ${t}`));
+                }
 
-              // Date
-              if (Object.hasOwn(updates, 'date') && updates.date !== item.date) {
-                if (updates.date && !item.date) pushHistory('date', `Added date: ${updates.date}`);
-                else if (!updates.date && item.date) pushHistory('date', `Removed date (${item.date})`);
-                else if (updates.date) pushHistory('date', `Changed date to: ${updates.date}`);
-              }
+                // Date
+                if (Object.hasOwn(updates, 'date') && updates.date !== item.date) {
+                  if (updates.date && !item.date) pushHistory('date', `Added date: ${updates.date}`);
+                  else if (!updates.date && item.date)
+                    pushHistory('date', `Removed date (${item.date})`);
+                  else if (updates.date) pushHistory('date', `Changed date to: ${updates.date}`);
+                }
 
-              // Content (Text blocks) - Removed automatic recording to handle it via edit session triggers
-              
-              // Geometry (Resize)
+                // Geometry (Move/Resize)
+                const moved =
+                  (updates.x !== undefined && updates.x !== item.x) ||
+                  (updates.y !== undefined && updates.y !== item.y);
+                const resized =
+                  (updates.width !== undefined && updates.width !== item.width) ||
+                  (updates.height !== undefined && updates.height !== item.height);
 
-              // Geometry (Resize)
-              if (
-                (updates.width !== undefined && updates.width !== item.width) ||
-                (updates.height !== undefined && updates.height !== item.height)
-              ) {
-                pushHistory('geometry', 'Resized block');
-              }
+                if (moved) pushHistory('geometry', 'Moved block');
+                if (resized) pushHistory('geometry', 'Resized block');
 
-              // Timer
-              if (updates.timer) {
-                if (updates.timer.isRunning && !item.timer?.isRunning) {
-                  pushHistory('timer', item.timer?.sessions?.length ? 'Resumed timer' : 'Started timer');
-                } else if (!updates.timer.isRunning && item.timer?.isRunning) {
-                  pushHistory('timer', historyActionLabel || 'Paused timer');
+                // Timer
+                if (updates.timer) {
+                  if (updates.timer.isRunning && !item.timer?.isRunning) {
+                    pushHistory(
+                      'timer',
+                      item.timer?.sessions?.length ? 'Resumed timer' : 'Started timer'
+                    );
+                  } else if (!updates.timer.isRunning && item.timer?.isRunning) {
+                    pushHistory('timer', options?.historyActionLabel || 'Paused timer');
+                  }
+                }
+
+                // Manual explicit label
+                if (options?.historyActionLabel && !updates.timer) {
+                  pushHistory('navigation', options.historyActionLabel);
                 }
               }
 
-              // Manual explicit label
-              if (historyActionLabel && !updates.timer) { // If it's timer, we already handled it above specifically
-                pushHistory('navigation', historyActionLabel);
-              }
-
-              return { ...item, ...updates, history: history.length > (item.history?.length ?? 0) ? history : item.history };
+              return {
+                ...item,
+                ...updates,
+                history: history.length > (item.history?.length ?? 0) ? history : item.history,
+              };
             }
             return item;
           })
@@ -167,6 +195,13 @@ export const useCanvas = () => {
       }));
     },
     []
+  );
+
+  const updateItemAtPath = useCallback(
+    (path: string[], id: string, updates: Partial<CanvasItem>, options?: { silent?: boolean; historyActionLabel?: string }) => {
+      batchUpdateAtPath(path, { [id]: updates }, options);
+    },
+    [batchUpdateAtPath]
   );
 
   const logHistoryAtPath = useCallback(
@@ -213,27 +248,9 @@ export const useCanvas = () => {
 
   const moveItemAtPath = useCallback(
     (path: string[], id: string, x: number, y: number) => {
-      setState((prev) => ({
-        ...prev,
-        items: updateItemsAtPath(prev.items, path, (items) =>
-          items.map((item) => {
-            if (item.id === id) {
-              if (item.type === 'canvas') return { ...item, x, y };
-              const history = [...(item.history ?? [])];
-              history.push({
-                id: crypto.randomUUID(),
-                type: 'geometry',
-                action: 'Moved block',
-                timestamp: Date.now(),
-              });
-              return { ...item, x, y, history };
-            }
-            return item;
-          })
-        ),
-      }));
+      batchUpdateAtPath(path, { [id]: { x, y } });
     },
-    []
+    [batchUpdateAtPath]
   );
 
   // Root-level convenience wrappers (path = [])
@@ -244,9 +261,15 @@ export const useCanvas = () => {
   );
 
   const updateItem = useCallback(
-    (id: string, updates: Partial<CanvasItem>, historyActionLabel?: string) =>
-      updateItemAtPath([], id, updates, historyActionLabel),
+    (id: string, updates: Partial<CanvasItem>, options?: { silent?: boolean; historyActionLabel?: string }) =>
+      updateItemAtPath([], id, updates, options),
     [updateItemAtPath]
+  );
+
+  const batchUpdate = useCallback(
+    (updatesMap: Record<string, Partial<CanvasItem>>, options?: { silent?: boolean; historyActionLabel?: string }) =>
+      batchUpdateAtPath([], updatesMap, options),
+    [batchUpdateAtPath]
   );
 
   const removeItem = useCallback(
@@ -314,10 +337,12 @@ export const useCanvas = () => {
     updateItem,
     removeItem,
     moveItem,
+    batchUpdate,
     addItemAtPath,
     updateItemAtPath,
     removeItemAtPath,
     moveItemAtPath,
+    batchUpdateAtPath,
     moveItemBetweenPaths,
     logHistoryAtPath,
     clearCanvas,

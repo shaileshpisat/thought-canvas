@@ -1,18 +1,7 @@
 import { CanvasItem } from '@/types/canvas';
-
-const DEFAULT_WIDTH = 300;
-const DEFAULT_HEIGHT = 200;
-const PADDING = 40;
-const START_X = 100;
-const START_Y = 100;
+import { ITEM_DEFAULTS, ORG_GAP, ORG_MARGIN, ORG_TOOLBAR_RESERVE, ITEM_MIN_WIDTH, ITEM_MIN_HEIGHT, DEFAULT_WIDTH, DEFAULT_HEIGHT, PADDING, START_X, START_Y } from './canvasConstants';
 
 export type OrganizedItem = { id: string; x: number; y: number; width?: number; height?: number };
-
-const ITEM_MIN_WIDTH = 160;
-const ITEM_MIN_HEIGHT = 90;
-const ORG_GAP = 32;
-const ORG_MARGIN = 80;
-const ORG_TOOLBAR_RESERVE = 100;
 
 /**
  * Organises items using an iterative compaction sequence:
@@ -46,8 +35,8 @@ export const organizeItems = (items: CanvasItem[]): OrganizedItem[] => {
     return rowA !== rowB ? rowA - rowB : a.x - b.x;
   });
 
-  const origW = sorted.map((item) => item.width  || (item.type === 'text' ? 240 : 300));
-  const origH = sorted.map((item) => item.height || (item.type === 'text' ? 120 : 200));
+  const origW = sorted.map((item) => item.width  || ITEM_DEFAULTS[item.type].width);
+  const origH = sorted.map((item) => item.height || ITEM_DEFAULTS[item.type].height);
 
   type Rect = { x: number; y: number; w: number; h: number };
 
@@ -98,13 +87,13 @@ export const organizeItems = (items: CanvasItem[]): OrganizedItem[] => {
 
     // Step 3: iterative compaction — keep moving items closer to origin
     // until nothing moves (canvas is as full as possible).
-    const MAX_PASSES = 5;
+    const MAX_PASSES = 8;
     for (let pass = 0; pass < MAX_PASSES; pass++) {
       let moved = false;
       for (let i = 0; i < rects.length; i++) {
         const others = rects.filter((_, j) => j !== i);
         const { x, y } = bestSpot(ws[i], hs[i], others);
-        if (x !== rects[i].x || y !== rects[i].y) {
+        if (Math.abs(x - rects[i].x) > 1 || Math.abs(y - rects[i].y) > 1) {
           rects[i] = { x, y, w: ws[i], h: hs[i] };
           moved = true;
         }
@@ -127,21 +116,35 @@ export const organizeItems = (items: CanvasItem[]): OrganizedItem[] => {
       ITEM_MIN_WIDTH / Math.max(...origW),
       ITEM_MIN_HEIGHT / Math.max(...origH)
     );
-    let lo = minScale;
-    let hi = 1;
-    for (let iter = 0; iter < 10; iter++) {
-      const mid = (lo + hi) / 2;
-      const scaledWs = origW.map((w) => Math.max(ITEM_MIN_WIDTH, Math.round(w * mid)));
-      const scaledHs = origH.map((h) => Math.max(ITEM_MIN_HEIGHT, Math.round(h * mid)));
-      const candidate = runLayout(scaledWs, scaledHs);
-      const candidateBottom = candidate.reduce((m, r) => Math.max(m, r.y + r.h), 0);
-      if (candidateBottom <= ORG_MARGIN + availH) {
-        lo = mid;
-        ws = scaledWs;
-        hs = scaledHs;
-        rects = candidate;
-      } else {
-        hi = mid;
+    
+    // Fallback: start with minScale results if we must resize
+    // Pre-calculate the min-scale layout since it's the smallest we can ever get
+    const minWs = origW.map((w) => Math.max(ITEM_MIN_WIDTH, Math.round(w * minScale)));
+    const minHs = origH.map((h) => Math.max(ITEM_MIN_HEIGHT, Math.round(h * minScale)));
+    ws = minWs;
+    hs = minHs;
+    rects = runLayout(minWs, minHs);
+
+    // If even min-scale doesn't fit, we stop and use it anyway (best-effort)
+    // Otherwise, we binary search for the LARGEST scale that still fits.
+    const minBottom = rects.reduce((m, r) => Math.max(m, r.y + r.h), 0);
+    if (minBottom <= ORG_MARGIN + availH) {
+      let lo = minScale;
+      let hi = 1;
+      for (let iter = 0; iter < 10; iter++) {
+        const mid = (lo + hi) / 2;
+        const scaledWs = origW.map((w) => Math.max(ITEM_MIN_WIDTH, Math.round(w * mid)));
+        const scaledHs = origH.map((h) => Math.max(ITEM_MIN_HEIGHT, Math.round(h * mid)));
+        const candidate = runLayout(scaledWs, scaledHs);
+        const candidateBottom = candidate.reduce((m, r) => Math.max(m, r.y + r.h), 0);
+        if (candidateBottom <= ORG_MARGIN + availH) {
+          lo = mid;
+          ws = scaledWs;
+          hs = scaledHs;
+          rects = candidate;
+        } else {
+          hi = mid;
+        }
       }
     }
   }
@@ -164,8 +167,8 @@ export const findEmptyLocation = (
   
   const hasCollision = (nx: number, ny: number) => {
     return items.some(item => {
-      const itemWidth = item.width || (item.type === 'text' ? 240 : 300);
-      const itemHeight = item.height || (item.type === 'text' ? 120 : 200);
+      const itemWidth = item.width || ITEM_DEFAULTS[item.type].width;
+      const itemHeight = item.height || ITEM_DEFAULTS[item.type].height;
       
       return (
         nx < item.x + itemWidth + PADDING &&

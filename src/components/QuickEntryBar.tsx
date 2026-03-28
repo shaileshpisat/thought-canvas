@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Hash, Play, Save, X, Layers, Calendar } from 'lucide-react';
 import { getRelativeLabel } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
+import { getItemsAtPath } from '@/hooks/useCanvas';
 
 export interface SubCanvasSuggestion {
     id: string;
@@ -15,10 +16,12 @@ export interface SubCanvasSuggestion {
 interface Props {
     onSave: (content: string, tags: string[], date?: string) => void;
     onAddToSubCanvas: (path: string[], content: string, tags: string[], date?: string) => void;
+    onAppendToBlock: (path: string[], id: string, appendText: string) => void;
     onStartTimer: (content: string, tags: string[], date?: string) => void;
     subCanvases: SubCanvasSuggestion[];
     tagMaster: string[];
     onAddToTagMaster: (tag: string) => void;
+    allItems: CanvasItem[];
 }
 
 /** Extract all #hashtag words from a string (deduped, without the #). */
@@ -40,10 +43,12 @@ function getActiveTag(text: string, cursorPos: number): string | null {
 export const QuickEntryBar: React.FC<Props> = ({
     onSave,
     onAddToSubCanvas,
+    onAppendToBlock,
     onStartTimer,
     subCanvases,
     tagMaster,
     onAddToTagMaster,
+    allItems,
 }) => {
     const [text, setText] = useState('');
     const [date, setDate] = useState<string | undefined>(undefined);
@@ -51,6 +56,10 @@ export const QuickEntryBar: React.FC<Props> = ({
     const [showDropdown, setShowDropdown] = useState(false);
     // Sub-canvas targeting: set when user has picked a canvas via >>
     const [targetCanvas, setTargetCanvas] = useState<SubCanvasSuggestion | null>(null);
+    // Block picker: shown when ^ is typed with a targetCanvas selected
+    const [showBlockPicker, setShowBlockPicker] = useState(false);
+    const [blockPickerFilter, setBlockPickerFilter] = useState('');
+    const [selectedBlock, setSelectedBlock] = useState<CanvasItem | null>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const dateInputRef = useRef<HTMLInputElement>(null);
     const openingDatePicker = useRef(false);
@@ -73,6 +82,7 @@ export const QuickEntryBar: React.FC<Props> = ({
 
     const clearTargetCanvas = () => {
         setTargetCanvas(null);
+        setSelectedBlock(null);
         setText('');
         setTimeout(() => inputRef.current?.focus(), 0);
     };
@@ -96,6 +106,35 @@ export const QuickEntryBar: React.FC<Props> = ({
                   .slice(0, 8)
             : [];
 
+    // Blocks in the targeted sub-canvas for ^ picker
+    const targetBlocks = targetCanvas
+        ? getItemsAtPath(allItems, targetCanvas.path)
+              .filter((i) => i.type === 'text' && i.content.trim())
+        : [];
+    const blockSuggestions = showBlockPicker
+        ? targetBlocks.filter((i) => {
+              const first = i.content.trim().split('\n')[0].toLowerCase();
+              return !blockPickerFilter || first.includes(blockPickerFilter.toLowerCase());
+          }).slice(0, 8)
+        : [];
+
+    const selectBlock = (item: CanvasItem) => {
+        const input = inputRef.current;
+        if (!input) return;
+        // Strip the trailing ^<filter> from the textarea — the note is shown as a badge
+        const newText = text.replace(/\^[^\s]*$/, '').trimEnd();
+        setText(newText);
+        setSelectedBlock(item);
+        setShowBlockPicker(false);
+        setBlockPickerFilter('');
+        setTimeout(() => { input.focus(); input.setSelectionRange(newText.length, newText.length); }, 0);
+    };
+
+    const clearSelectedBlock = () => {
+        setSelectedBlock(null);
+        setTimeout(() => inputRef.current?.focus(), 0);
+    };
+
     const syncActiveTag = (value: string, cursor: number) => {
         const partial = getActiveTag(value, cursor);
         setActiveTag(partial);
@@ -116,6 +155,18 @@ export const QuickEntryBar: React.FC<Props> = ({
         const cursor = e.target.selectionStart ?? val.length;
         setText(val);
         syncActiveTag(val, cursor);
+        // ^ block picker: only active when a sub-canvas is targeted
+        if (targetCanvas) {
+            const before = val.slice(0, cursor);
+            const caretMatch = before.match(/\^([^\s]*)$/);
+            if (caretMatch) {
+                setShowBlockPicker(true);
+                setBlockPickerFilter(caretMatch[1]);
+                return;
+            }
+        }
+        setShowBlockPicker(false);
+        setBlockPickerFilter('');
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -124,14 +175,24 @@ export const QuickEntryBar: React.FC<Props> = ({
             openDatePicker();
             return;
         }
-        if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
-            e.preventDefault();
-            submit('save');
-        }
         if (e.key === 'Escape') {
+            if (showBlockPicker) {
+                setShowBlockPicker(false);
+                setBlockPickerFilter('');
+                return;
+            }
+            if (selectedBlock) {
+                setSelectedBlock(null);
+                return;
+            }
             setText('');
             setDate(undefined);
             setShowDropdown(false);
+            return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey && text.trim()) {
+            e.preventDefault();
+            submit('save');
         }
     };
 
@@ -157,13 +218,20 @@ export const QuickEntryBar: React.FC<Props> = ({
 
     const submit = (action: 'save' | 'timer') => {
         const trimmed = text.trim();
-        if (!trimmed && !targetCanvas) return;
-        const content = trimmed;
+        const tags = extractTags(trimmed);
+        // Strip #tags from the saved content
+        const content = trimmed.replace(/#[a-zA-Z0-9_]+/g, '').replace(/\s{2,}/g, ' ').trim();
+        tags.forEach((t) => { if (!tagMaster.includes(t)) onAddToTagMaster(t); });
+        // If a block is selected via ^, append typed text to that existing block
+        if (selectedBlock && targetCanvas) {
+            if (!content) return;
+            onAppendToBlock(targetCanvas.path, selectedBlock.id, content);
+            setText('');
+            setDate(undefined);
+            setSelectedBlock(null);
+            return;
+        }
         if (!content) return;
-        const tags = extractTags(content);
-        tags.forEach((t) => {
-            if (!tagMaster.includes(t)) onAddToTagMaster(t);
-        });
         if (targetCanvas) {
             onAddToSubCanvas(targetCanvas.path, content, tags, date);
             setTargetCanvas(null);
@@ -176,6 +244,7 @@ export const QuickEntryBar: React.FC<Props> = ({
         setDate(undefined);
         setShowDropdown(false);
         setActiveTag(null);
+        setSelectedBlock(null);
     };
 
     const hasText = text.trim().length > 0;
@@ -198,6 +267,20 @@ export const QuickEntryBar: React.FC<Props> = ({
                     </button>
                 )}
 
+                {/* Selected block badge */}
+                {selectedBlock && (
+                    <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); clearSelectedBlock(); }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0 hover:bg-amber-500/30 transition-colors max-w-[180px]"
+                        title="Clear selected note"
+                    >
+                        <span className="font-bold opacity-70">^</span>
+                        <span className="truncate">{selectedBlock.content.trim().split('\n')[0].slice(0, 30)}</span>
+                        <X size={9} className="ml-0.5 opacity-60 shrink-0" />
+                    </button>
+                )}
+
                 {/* Input */}
                 <div className="relative flex-1">
                     <textarea
@@ -210,7 +293,7 @@ export const QuickEntryBar: React.FC<Props> = ({
                             const cursor = inputRef.current?.selectionStart ?? text.length;
                             syncActiveTag(text, cursor);
                         }}
-                        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                        onBlur={() => setTimeout(() => { setShowDropdown(false); setShowBlockPicker(false); }, 150)}
                         onSelect={(e) => {
                             const cursor = (e.target as HTMLTextAreaElement).selectionStart ?? text.length;
                             syncActiveTag(text, cursor);
@@ -249,8 +332,34 @@ export const QuickEntryBar: React.FC<Props> = ({
                         </ul>
                     )}
 
+                    {/* Block picker dropdown — shown when ^ is typed with a target sub-canvas */}
+                    {showBlockPicker && (
+                        <ul
+                            className="absolute top-full left-0 mt-2 rounded-xl shadow-xl overflow-hidden min-w-[240px] z-50 border border-white/10"
+                            style={{ background: 'rgba(8, 14, 26, 0.97)', backdropFilter: 'blur(20px)' }}
+                        >
+                            {blockSuggestions.length > 0 ? blockSuggestions.map((item) => {
+                                const firstLine = item.content.trim().split('\n')[0].slice(0, 60);
+                                return (
+                                    <li key={item.id}>
+                                        <button
+                                            type="button"
+                                            onMouseDown={(e) => { e.preventDefault(); selectBlock(item); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/60 hover:text-amber-300 hover:bg-white/5 transition-colors"
+                                        >
+                                            <span className="text-amber-400/50 font-bold shrink-0">^</span>
+                                            <span className="truncate text-white/80">{firstLine}</span>
+                                        </button>
+                                    </li>
+                                );
+                            }) : (
+                                <li className="px-3 py-2 text-xs text-white/30">No blocks in this canvas</li>
+                            )}
+                        </ul>
+                    )}
+
                     {/* Tag suggestion dropdown */}
-                    {showDropdown && suggestions.length > 0 && !showCanvasPicker && (
+                    {showDropdown && suggestions.length > 0 && !showCanvasPicker && !showBlockPicker && (
                         <ul
                             className="absolute top-full left-0 mt-2 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50 border border-white/10"
                             style={{

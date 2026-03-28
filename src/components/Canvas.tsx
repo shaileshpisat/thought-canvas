@@ -35,6 +35,7 @@ import { getAllSubCanvases } from '@/utils/searchUtils';
 
 
 import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
+import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
@@ -63,6 +64,8 @@ export const Canvas: React.FC = () => {
         moveItemAtPath,
         moveItemBetweenPaths,
         logHistoryAtPath,
+        batchUpdate,
+        batchUpdateAtPath,
         clearCanvas,
         mergeItems,
         isLoaded,
@@ -314,8 +317,16 @@ export const Canvas: React.FC = () => {
 
     const handleToggleTimer = (id: string) => {
         const item = currentItemsRef.current.find((i) => i.id === id);
-        if (!item?.timer) return;
+        if (!item) return;
         const now = Date.now();
+        const today = new Date().toISOString().slice(0, 10);
+        if (!item.timer) {
+            updateItemAtPath(navigationPathRef.current, id, {
+                timer: { isRunning: true, startTime: now, totalElapsed: 0, sessions: [{ start: now }] },
+                date: today,
+            });
+            return;
+        }
         if (item.timer.isRunning) {
             const elapsed = item.timer.totalElapsed + Math.floor((now - item.timer.startTime) / 1000);
             const sessions = (item.timer.sessions ?? []).map((s) =>
@@ -323,7 +334,7 @@ export const Canvas: React.FC = () => {
             );
             updateItemAtPath(navigationPathRef.current, id, {
                 timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
-            }, 'Paused timer');
+            }, { historyActionLabel: 'Paused timer' });
         } else {
             updateItemAtPath(navigationPathRef.current, id, {
                 timer: {
@@ -332,6 +343,7 @@ export const Canvas: React.FC = () => {
                     startTime: now,
                     sessions: [...(item.timer.sessions ?? []), { start: now }],
                 },
+                date: today,
             });
         }
     };
@@ -348,7 +360,7 @@ export const Canvas: React.FC = () => {
             : (item.timer.sessions ?? []);
         updateItemAtPath(navigationPathRef.current, id, {
             timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
-        }, 'Stopped timer');
+        }, { historyActionLabel: 'Stopped timer' });
     };
 
     const handleLogAction = (id: string, label: string) => {
@@ -552,10 +564,17 @@ export const Canvas: React.FC = () => {
                 <QuickEntryBar
                     onSave={handleQuickSave}
                     onAddToSubCanvas={handleAddToSubCanvas}
+                    onAppendToBlock={(path, id, appendText) => {
+                        const item = getItemsAtPath(state.items, path).find((i) => i.id === id);
+                        if (!item) return;
+                        const newContent = item.content.trimEnd() + '\n' + appendText;
+                        updateItemAtPath(path, id, { content: newContent });
+                    }}
                     onStartTimer={handleQuickStartTimer}
                     subCanvases={getAllSubCanvases(state.items)}
                     tagMaster={tagMaster}
                     onAddToTagMaster={addToTagMaster}
+                    allItems={state.items}
                 />
             )}
 
@@ -770,15 +789,16 @@ export const Canvas: React.FC = () => {
                             currentItems.map(({ id, x, y, width, height }) => ({ id, x, y, width, height }))
                         );
                         const positions = organizeItems(currentItems);
+                        const updatesMap: Record<string, Partial<CanvasItem>> = {};
                         positions.forEach(({ id, x, y, width, height }) => {
-                            moveItem(id, x, y);
-                            if (width !== undefined || height !== undefined) {
-                                updateItem(id, {
-                                    ...(width !== undefined  ? { width }  : {}),
-                                    ...(height !== undefined ? { height } : {}),
-                                });
-                            }
+                            updatesMap[id] = {
+                                x,
+                                y,
+                                ...(width !== undefined  ? { width }  : {}),
+                                ...(height !== undefined ? { height } : {}),
+                            };
                         });
+                        batchUpdateAtPath(navigationPathRef.current, updatesMap, { silent: true });
                     }}
                     className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
                     title="Organize items into a clean grid"
@@ -792,10 +812,16 @@ export const Canvas: React.FC = () => {
                         <div className="w-[1px] h-10 bg-white/10 mx-1" />
                         <button
                             onClick={() => {
+                                const updatesMap: Record<string, Partial<CanvasItem>> = {};
                                 preOrganizeSnapshot.forEach(({ id, x, y, width, height }) => {
-                                    moveItem(id, x, y);
-                                    updateItem(id, { width, height });
+                                    updatesMap[id] = {
+                                        x,
+                                        y,
+                                        width: width ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].width,
+                                        height: height ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].height,
+                                    };
                                 });
+                                batchUpdateAtPath(navigationPathRef.current, updatesMap, { silent: true });
                                 setPreOrganizeSnapshot(null);
                             }}
                             className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"

@@ -61,6 +61,8 @@ interface Props {
     onLogHistory?: (id: string, type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => void;
 }
 
+import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
+
 const MIN_WIDTH = 150;
 const MIN_HEIGHT = 80;
 
@@ -270,10 +272,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
         window.addEventListener('pointerup', onPointerUp);
     };
 
-    const defaultWidth =
-        item.type === 'text' ? 240 : item.type === 'canvas' ? 320 : 300;
-    const defaultHeight =
-        item.type === 'text' ? 120 : item.type === 'link' ? 280 : item.type === 'canvas' ? 240 : 200;
+        const { width: defaultWidth, height: defaultHeight } = ITEM_DEFAULTS[item.type];
 
     const currentWidth = localSize?.width ?? item.width ?? defaultWidth;
     const currentHeight = localSize?.height ?? item.height ?? defaultHeight;
@@ -652,7 +651,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
             `}
             >
                 {/* Priority accent strip */}
-                {priorityCfg && (
+                {priorityCfg && item.type !== 'canvas' && (
                     <div
                         className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full z-20 ${priorityCfg.dot}`}
                         style={{ opacity: item.priority === 'very-low' ? 0.4 : 0.85 }}
@@ -715,6 +714,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </button>
                         )}
 
+                        {item.type !== 'canvas' && (<>
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {/* Date picker button */}
@@ -791,6 +791,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 </div>
                             )}
                         </div>
+                        </>)}
 
                         <div className="w-[1px] h-4 bg-white/10" />
 
@@ -835,6 +836,23 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </div>
                         )}
 
+                        {/* Timer button — non-canvas blocks only */}
+                        {item.type !== 'canvas' && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onToggleTimer?.(item.id); }}
+                                className={`p-1.5 transition-colors ${
+                                    item.timer?.isRunning
+                                        ? 'text-emerald-400 hover:text-emerald-300'
+                                        : item.timer && item.timer.totalElapsed > 0
+                                        ? 'text-white/50 hover:text-emerald-400'
+                                        : 'text-white/40 hover:text-emerald-400'
+                                }`}
+                                title={item.timer?.isRunning ? 'Pause timer' : item.timer && item.timer.totalElapsed > 0 ? 'Resume timer' : 'Start timer'}
+                            >
+                                {item.timer?.isRunning ? <Pause size={16} /> : <Play size={16} />}
+                            </button>
+                        )}
+
                         {/* History audit log button */}
                         <button
                             onClick={() => setShowHistory(!showHistory)}
@@ -856,7 +874,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 )}
 
                 {/* Date overlay badge — top right of block */}
-                {item.date && dateLabel && (
+                {item.date && dateLabel && item.type !== 'canvas' && (
                     <div
                         className={`
                             absolute -top-3 right-3 z-30 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide pointer-events-none select-none
