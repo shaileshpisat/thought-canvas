@@ -1,5 +1,5 @@
 /**
- * Storage configuration for Thought Canvas.
+ * Storage configuration for Black Board.
  *
  * STORAGE_LIMIT_BYTES — the maximum amount of browser storage this app is
  * allowed to consume (across localStorage + IndexedDB combined, as reported

@@ -1,6 +1,6 @@
-# Thought Canvas - Project Walkthrough
+# Black Board - Project Walkthrough
 
-Thought Canvas is a spatial thinking tool built with Next.js, React, and Tailwind CSS. It allows you to organize your thoughts, images, and links in a free-form digital space.
+Black Board is a spatial thinking tool built with Next.js, React, and Tailwind CSS. It allows you to organize your thoughts, images, and links in a free-form digital space.
 
 ## Key Features
 - **Spatial Canvas**: Drag and drop elements anywhere on the screen.
@@ -30,4 +30,4 @@ Thought Canvas is a spatial thinking tool built with Next.js, React, and Tailwin
 - `Canvas` component: Handles global events like `paste` and renders the workspace.
 - `CanvasItem` component: A wrapper that provides drag functionality and type-specific rendering.
 
-![Thought Canvas Logo](./thought_canvas_logo_1773416246941.png)
+![Black Board Logo](./thought_canvas_logo_1773416246941.png)

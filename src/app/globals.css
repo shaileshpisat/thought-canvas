@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-canvas-bg: #0f172a;
-  --color-canvas-grid: rgba(255, 255, 255, 0.05);
+  --color-canvas-bg: #0c0e14;
+  --color-canvas-grid: rgba(255, 255, 255, 0.04);
   --color-accent: #38bdf8;
   --color-accent-hover: #0ea5e9;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -10,7 +10,7 @@
 }
 
 :root {
-  --background: #0f172a;
+  --background: #0c0e14;
   --foreground: #f8fafc;
 }
 
@@ -28,6 +28,19 @@ body {
     linear-gradient(to right, var(--color-canvas-grid) 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-canvas-grid) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Timer 15-min alert — two pulses of amber glow */
+@keyframes timer-alert {
+  0%   { box-shadow: 0 0  0px  0px rgba(251,191,36,0); }
+  20%  { box-shadow: 0 0 40px 12px rgba(251,191,36,0.55); }
+  40%  { box-shadow: 0 0 10px  3px rgba(251,191,36,0.15); }
+  60%  { box-shadow: 0 0 40px 12px rgba(251,191,36,0.55); }
+  80%  { box-shadow: 0 0 10px  3px rgba(251,191,36,0.15); }
+  100% { box-shadow: 0 0  0px  0px rgba(251,191,36,0); }
+}
+.timer-alert {
+  animation: timer-alert 2s ease-in-out forwards;
 }
 
 /* Premium Glassmorphism */

@@ -19,7 +19,7 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
     // Item count from localStorage canvas data
     let itemCount = 0;
     try {
-        const raw = localStorage.getItem('thought-canvas-data');
+        const raw = localStorage.getItem('black-board-data');
         if (raw) itemCount = JSON.parse(raw)?.items?.length ?? 0;
     } catch { /* ignore */ }
 

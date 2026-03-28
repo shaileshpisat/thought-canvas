@@ -1,7 +1,8 @@
 import { isBase64DataUrl, offloadAllImagesInTree } from './imageDB';
 import type { CanvasState } from '@/types/canvas';
 
-const STORAGE_KEY = 'thought-canvas-data';
+const STORAGE_KEY = 'black-board-data';
+const OLD_STORAGE_KEY = 'thought-canvas-data';
 
 /**
  * One-time migration: moves base64 image content from localStorage into IndexedDB.
@@ -11,8 +12,13 @@ const STORAGE_KEY = 'thought-canvas-data';
 export async function migrateImagesToIDB(): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return;
+  let raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    // Migration from Thought Canvas to Black Board
+    raw = localStorage.getItem(OLD_STORAGE_KEY);
+    if (!raw) return;
+    localStorage.setItem(STORAGE_KEY, raw);
+  }
 
   let state: CanvasState;
   try {

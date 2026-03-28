@@ -1,4 +1,4 @@
-# Implementation Plan - Thought Canvas
+# Implementation Plan - Black Board
 
 ## Phase 1: Foundation & Design System
 - [ ] Configure Tailwind with custom colors and fonts (Inter/Outfit).

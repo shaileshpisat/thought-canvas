@@ -1,11 +1,11 @@
 {
-    "name": "Thought Canvas",
-    "short_name": "Canvas",
-    "description": "Your digital mind garden - a spatial thinking tool.",
+    "name": "Black Board",
+    "short_name": "Board",
+    "description": "Infinite spatial thinking board - organize your mind, notes, and visual fragments.",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#0f172a",
-    "theme_color": "#0f172a",
+    "background_color": "#0c0e14",
+    "theme_color": "#0c0e14",
     "icons": [
         {
             "src": "/icons/icon-192x192.png",

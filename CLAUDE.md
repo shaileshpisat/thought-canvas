@@ -14,11 +14,11 @@ There are no tests in this project.
 
 ## Architecture
 
-Thought Canvas is a single-page, client-side freeform canvas app built with Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, and Framer Motion.
+Black Board is a single-page, client-side freeform canvas app built with Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, and Framer Motion.
 
 ### Data flow
 
-All canvas state lives in **`localStorage`** under the key `thought-canvas-data`. There is no database or auth. The `useCanvas` hook ([src/hooks/useCanvas.ts](src/hooks/useCanvas.ts)) manages reads/writes to localStorage and exposes `addItem`, `updateItem`, `removeItem`, `moveItem`, and `clearCanvas`.
+All canvas state lives in **`localStorage`** under the key `black-board-data`. There is no database or auth. The `useCanvas` hook ([src/hooks/useCanvas.ts](src/hooks/useCanvas.ts)) manages reads/writes to localStorage and exposes `addItem`, `updateItem`, `removeItem`, `moveItem`, and `clearCanvas`.
 
 ### Core types
 

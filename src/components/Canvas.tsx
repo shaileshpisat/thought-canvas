@@ -20,11 +20,19 @@ import {
     Settings,
     LayoutGrid,
     Undo2,
+    Pause,
+    Play,
+    Square,
+    Timer,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
 import { DateFilterPanel } from './DateFilterPanel';
+import { CalendarBoard } from './CalendarBoard';
+import { QuickEntryBar, SubCanvasSuggestion } from './QuickEntryBar';
+import { getAllSubCanvases } from '@/utils/searchUtils';
+
 
 import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
@@ -54,6 +62,7 @@ export const Canvas: React.FC = () => {
         removeItemAtPath,
         moveItemAtPath,
         moveItemBetweenPaths,
+        logHistoryAtPath,
         clearCanvas,
         mergeItems,
         isLoaded,
@@ -63,7 +72,9 @@ export const Canvas: React.FC = () => {
     const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar'>('canvas');
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
+
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
     const [preOrganizeSnapshot, setPreOrganizeSnapshot] = React.useState<
         { id: string; x: number; y: number; width?: number; height?: number }[] | null
@@ -71,6 +82,19 @@ export const Canvas: React.FC = () => {
     const [hoverCalMonth, setHoverCalMonth] = useState<Date>(() => {
         const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
     });
+    const [tagMaster, setTagMaster] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return [];
+        let tags = localStorage.getItem('black-board-tags');
+        if (!tags) {
+            tags = localStorage.getItem('thought-canvas-tags');
+            if (tags) localStorage.setItem('black-board-tags', tags);
+        }
+        try { return JSON.parse(tags || '[]'); } catch { return []; }
+    });
+    const [clockTick, setClockTick] = useState(0);
+    const [alertingIds, setAlertingIds] = useState<Set<string>>(new Set());
+    const lastAlertRef = useRef<number>(0);
+    const stateRef = useRef(state);
     const { refresh: refreshStorage } = useStorageMonitor();
     const { trackImageAdded } = useImageStorageTracker(refreshStorage);
 
@@ -107,7 +131,7 @@ export const Canvas: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `thought-canvas-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `black-board-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -167,6 +191,10 @@ export const Canvas: React.FC = () => {
     const moveItem = (id: string, x: number, y: number) =>
         moveItemAtPath(navigationPathRef.current, id, x, y);
 
+    const handleLogHistory = (id: string, type: any, action: string, snapshot?: string) => {
+        logHistoryAtPath(navigationPathRef.current, id, type, action, snapshot);
+    };
+
     // Move a block out of current sub-canvas to parent level
     const handleEject = (item: CanvasItem) => {
         const parentPath = navigationPath.slice(0, -1);
@@ -193,6 +221,158 @@ export const Canvas: React.FC = () => {
         } catch (error) {
             console.error('Failed to fetch metadata:', error);
         }
+    };
+
+    // Persist tagMaster to localStorage whenever it changes
+    useEffect(() => {
+        localStorage.setItem('black-board-tags', JSON.stringify(tagMaster));
+    }, [tagMaster]);
+
+    const addToTagMaster = (tag: string) => {
+        setTagMaster((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
+    };
+
+    // Keep stateRef fresh so the interval below never reads stale state
+    stateRef.current = state;
+
+    // Clock tick + 15-min audible/visual alert for running timers
+    useEffect(() => {
+        const ALERT_INTERVAL_MS = 15 * 60 * 1000;
+
+        const playAlert = () => {
+            try {
+                const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+                osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.6);
+            } catch { /* AudioContext unavailable */ }
+        };
+
+        const id = setInterval(() => {
+            setClockTick((t) => t + 1);
+
+            const running = flattenItems(stateRef.current.items).filter((i) => i.timer?.isRunning);
+            if (running.length === 0) return;
+
+            const now = Date.now();
+            if (now - lastAlertRef.current >= ALERT_INTERVAL_MS) {
+                lastAlertRef.current = now;
+                playAlert();
+                const ids = new Set(running.map((i) => i.id));
+                setAlertingIds(ids);
+                setTimeout(() => setAlertingIds(new Set()), 2500);
+            }
+        }, 1000);
+
+        return () => clearInterval(id);
+    }, []);
+
+    const formatElapsed = (totalElapsed: number, isRunning: boolean, startTime: number): string => {
+        let s = totalElapsed;
+        if (isRunning) s += Math.floor((Date.now() - startTime) / 1000);
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    };
+
+    const handleQuickSave = (content: string, tags: string[], date?: string) => {
+        const { x, y } = findEmptyLocation(currentItemsRef.current, 280, 140);
+        addItemAtPath(navigationPathRef.current, { type: 'text', content, x, y, tags, ...(date ? { date } : {}) });
+    };
+
+    const handleAddToSubCanvas = (path: string[], content: string, tags: string[], date?: string) => {
+        const targetItems = getItemsAtPath(state.items, path);
+        const { x, y } = findEmptyLocation(targetItems, 280, 140);
+        addItemAtPath(path, { type: 'text', content, x, y, tags, ...(date ? { date } : {}) });
+    };
+
+    const handleQuickStartTimer = (content: string, tags: string[], date?: string) => {
+        const { x, y } = findEmptyLocation(currentItemsRef.current, 280, 140);
+        const now = Date.now();
+        addItemAtPath(navigationPathRef.current, {
+            type: 'text',
+            content,
+            x,
+            y,
+            tags,
+            ...(date ? { date } : {}),
+            timer: { isRunning: true, startTime: now, totalElapsed: 0, sessions: [{ start: now }] },
+        });
+    };
+
+    const handleToggleTimer = (id: string) => {
+        const item = currentItemsRef.current.find((i) => i.id === id);
+        if (!item?.timer) return;
+        const now = Date.now();
+        if (item.timer.isRunning) {
+            const elapsed = item.timer.totalElapsed + Math.floor((now - item.timer.startTime) / 1000);
+            const sessions = (item.timer.sessions ?? []).map((s) =>
+                s.end === undefined ? { ...s, end: now } : s
+            );
+            updateItemAtPath(navigationPathRef.current, id, {
+                timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
+            }, 'Paused timer');
+        } else {
+            updateItemAtPath(navigationPathRef.current, id, {
+                timer: {
+                    ...item.timer,
+                    isRunning: true,
+                    startTime: now,
+                    sessions: [...(item.timer.sessions ?? []), { start: now }],
+                },
+            });
+        }
+    };
+
+    const handleStopTimer = (id: string) => {
+        const item = currentItemsRef.current.find((i) => i.id === id);
+        if (!item?.timer) return;
+        const now = Date.now();
+        const elapsed = item.timer.isRunning
+            ? item.timer.totalElapsed + Math.floor((now - item.timer.startTime) / 1000)
+            : item.timer.totalElapsed;
+        const sessions = item.timer.isRunning
+            ? (item.timer.sessions ?? []).map((s) => (s.end === undefined ? { ...s, end: now } : s))
+            : (item.timer.sessions ?? []);
+        updateItemAtPath(navigationPathRef.current, id, {
+            timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
+        }, 'Stopped timer');
+    };
+
+    const handleLogAction = (id: string, label: string) => {
+        if (!label.trim()) return;
+        const item = currentItemsRef.current.find((i) => i.id === id);
+        if (!item) return;
+        const now = Date.now();
+        const prevActions = item.actions ?? [];
+        let duration = 0;
+        if (prevActions.length > 0) {
+            duration = Math.floor((now - prevActions[prevActions.length - 1].timestamp) / 1000);
+        } else if (item.timer) {
+            duration = item.timer.totalElapsed + (item.timer.isRunning ? Math.floor((now - item.timer.startTime) / 1000) : 0);
+        }
+        const newAction = { id: crypto.randomUUID(), label: label.trim(), timestamp: now, duration };
+        updateItemAtPath(navigationPathRef.current, id, { actions: [...prevActions, newAction] });
+    };
+
+    const handleDeleteAction = (id: string, actionId: string) => {
+        const item = currentItemsRef.current.find((i) => i.id === id);
+        if (!item) return;
+        updateItemAtPath(navigationPathRef.current, id, {
+            actions: (item.actions ?? []).filter((a) => a.id !== actionId),
+        });
     };
 
     // Paste handler — uses refs so it doesn't need to re-register on path change
@@ -303,30 +483,133 @@ export const Canvas: React.FC = () => {
 
     return (
         <div className="relative w-screen h-screen overflow-hidden bg-canvas-bg canvas-bg">
-            <div
-                ref={canvasRef}
-                className="absolute inset-0 w-full h-full"
-                onDoubleClick={handleDoubleClick}
-            >
-                {currentItems.map((item) => (
-                    <CanvasItemComponent
-                        key={item.id}
-                        item={item}
-                        onUpdate={updateItem}
-                        onRemove={removeItem}
-                        onMove={moveItem}
-                        onEnterCanvas={handleEnterCanvas}
-                        canEject={navigationPath.length > 0}
-                        onEject={() => handleEject(item)}
-                        moveTargets={currentItems.filter((i) => i.type === 'canvas' && i.id !== item.id)}
-                        onMoveInto={(targetId) => handleMoveInto(item, targetId)}
-                    />
-                ))}
+            {/* Sub-canvas navigation breadcrumbs */}
+            <div className="fixed top-24 left-8 z-[100] flex items-center gap-2 animate-in slide-in-from-left-4">
+                {navigationPath.map((id, index) => {
+                    const labels = getBreadcrumbLabels(state.items, navigationPath.slice(0, index + 1));
+                    const label = labels[labels.length - 1];
+                    return (
+                        <React.Fragment key={id}>
+                            <ChevronRight size={14} className="text-white/20" />
+                            <button
+                                onClick={() => navigateTo(index + 1)}
+                                className="text-xs font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 transition-colors"
+                            >
+                                {label}
+                            </button>
+                        </React.Fragment>
+                    );
+                })}
             </div>
+
+            {viewMode === 'canvas' ? (
+
+                <div
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full"
+                    onDoubleClick={handleDoubleClick}
+                >
+                    {currentItems.map((item) => (
+                        <CanvasItemComponent
+                            key={item.id}
+                            item={item}
+                            onUpdate={updateItem}
+                            onRemove={removeItem}
+                            onMove={moveItem}
+                            onEnterCanvas={handleEnterCanvas}
+                            canEject={navigationPath.length > 0}
+                            onEject={() => handleEject(item)}
+                            moveTargets={currentItems.filter((i) => i.type === 'canvas' && i.id !== item.id)}
+                            onMoveInto={(targetId) => handleMoveInto(item, targetId)}
+                            clockTick={clockTick}
+                            onToggleTimer={handleToggleTimer}
+                            onStopTimer={handleStopTimer}
+                            isAlerting={alertingIds.has(item.id)}
+                            onLogAction={handleLogAction}
+                            onDeleteAction={handleDeleteAction}
+                            tagMaster={tagMaster}
+                            onUpdateTags={(id, tags) => {
+                                tags.forEach((t) => addToTagMaster(t));
+                                updateItem(id, { tags });
+                            }}
+                            onLogHistory={handleLogHistory}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <CalendarBoard
+                    items={state.items}
+                    onClose={() => setViewMode('canvas')}
+                    onNavigateToItem={(item, path) => {
+                        setNavigationPath(path);
+                        setViewMode('canvas');
+                    }}
+                />
+            )}
+
+            {/* Quick Entry Bar — visible in canvas mode across all levels */}
+            {viewMode === 'canvas' && (
+                <QuickEntryBar
+                    onSave={handleQuickSave}
+                    onAddToSubCanvas={handleAddToSubCanvas}
+                    onStartTimer={handleQuickStartTimer}
+                    subCanvases={getAllSubCanvases(state.items)}
+                    tagMaster={tagMaster}
+                    onAddToTagMaster={addToTagMaster}
+                />
+            )}
+
+            {/* Running Timers Capsule — top-right */}
+            {viewMode === 'canvas' && (() => {
+                const running = flattenItems(state.items).filter((i) => i.timer?.isRunning);
+                if (running.length === 0) return null;
+                return (
+                    <div className="fixed top-5 right-6 z-[100] flex items-center gap-2 animate-in slide-in-from-top-4">
+                        <div className="flex items-center gap-1.5 px-2 py-1 glass rounded-xl">
+                            <Timer size={11} className="text-emerald-400/70 shrink-0" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">
+                                {running.length} running
+                            </span>
+                        </div>
+                        {running.map((item) => {
+                            const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0].slice(0, 28) || 'Untitled';
+                            const elapsed = formatElapsed(item.timer!.totalElapsed, true, item.timer!.startTime);
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    className="group/rc flex items-center gap-2 px-3 py-1.5 glass rounded-xl shadow-lg animate-in fade-in"
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                    <span className="text-xs text-white/70 font-medium truncate max-w-[140px]">{label}</span>
+                                    <span className="font-mono text-[11px] font-bold tabular-nums text-emerald-400">{elapsed}</span>
+                                    {/* Controls on hover */}
+                                    <div className="flex items-center gap-0.5 w-0 overflow-hidden group-hover/rc:w-auto transition-all duration-150">
+                                        <button
+                                            onClick={() => handleToggleTimer(item.id)}
+                                            className="p-1 rounded hover:bg-white/10 transition-colors"
+                                            title="Pause"
+                                        >
+                                            <Pause size={10} className="text-emerald-400" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleStopTimer(item.id)}
+                                            className="p-1 rounded hover:bg-red-500/20 transition-colors"
+                                            title="Stop"
+                                        >
+                                            <Square size={10} className="text-white/40 hover:text-red-400" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
 
             {/* Breadcrumb — only visible when inside a sub-canvas */}
             {navigationPath.length > 0 && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 glass rounded-xl shadow-xl z-[100] animate-in slide-in-from-top-4">
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 glass rounded-xl shadow-xl z-[100] animate-in slide-in-from-top-4">
                     <button
                         onClick={() => setNavigationPath([])}
                         className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/60 hover:text-white"
@@ -356,8 +639,39 @@ export const Canvas: React.FC = () => {
             )}
 
             {/* Toolbar */}
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 p-2 glass rounded-2xl shadow-2xl z-[100] animate-in slide-in-from-bottom-8">
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 glass rounded-2xl shadow-2xl z-[100] animate-in slide-in-from-bottom-8">
+                {/* View Switcher */}
+                <div className="flex items-center gap-1 p-1 bg-white/[0.03] rounded-xl mr-2">
+                    <button
+                        onClick={() => setViewMode('canvas')}
+                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
+                            viewMode === 'canvas' 
+                                ? 'bg-white/10 text-white shadow-inner' 
+                                : 'text-white/30 hover:text-white/60'
+                        }`}
+                        title="Switch to Board View"
+                    >
+                        <LayoutGrid size={20} className={viewMode === 'canvas' ? 'text-sky-400' : ''} />
+                        <span className="text-[9px] uppercase font-black tracking-widest">Board</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('calendar')}
+                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
+                            viewMode === 'calendar' 
+                                ? 'bg-white/10 text-white shadow-inner' 
+                                : 'text-white/30 hover:text-white/60'
+                        }`}
+                        title="Switch to Week View"
+                    >
+                        <CalendarDays size={20} className={viewMode === 'calendar' ? 'text-sky-400' : ''} />
+                        <span className="text-[9px] uppercase font-black tracking-widest">Week</span>
+                    </button>
+                </div>
+
+                <div className="w-[1px] h-10 bg-white/10" />
+
                 <button
+
                     onClick={() => {
                         const { x, y } = findEmptyLocation(currentItems, 240, 120);
                         addItem({ type: 'text', content: '', x, y });
@@ -446,6 +760,7 @@ export const Canvas: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Canvas</span>
                 </button>
 
+
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
@@ -502,14 +817,14 @@ export const Canvas: React.FC = () => {
                     <div>
                         <div className="flex items-baseline gap-2">
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-                                Thought Canvas
+                                Black Board
                             </h1>
                             <button
                                 onClick={() => setShowChangelog(true)}
                                 className="text-[10px] font-mono text-white/25 tracking-wider hover:text-sky-400/70 transition-colors cursor-pointer"
                             >v1.4.3</button>
                         </div>
-                        <p className="text-xs text-white/30 font-medium tracking-wide uppercase">Your digital mind garden</p>
+                        <p className="text-xs text-white/30 font-medium tracking-wide uppercase">The Spatial Thinking Board</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
                             Developed &amp; managed by
                             <a href="https://allwebtech.in" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-white/50 transition-colors">

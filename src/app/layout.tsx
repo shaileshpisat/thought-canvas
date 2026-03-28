@@ -13,13 +13,13 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Thought Canvas | Your Digital Mind Garden",
-  description: "A spatial thinking tool for organizing thoughts, images, and links.",
+  title: "Black Board | Infinite Spatial Thinking",
+  description: "The ultimate spatial thinking board for organizing your mind, notes, and visual fragments.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Thought Canvas",
+    title: "Black Board",
   },
   formatDetection: {
     telephone: false,
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#0c0e14",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

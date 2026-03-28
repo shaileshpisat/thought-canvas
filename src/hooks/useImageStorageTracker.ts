@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
-const TRACKER_KEY = 'thought-canvas-img-tracker';
+const TRACKER_KEY = 'black-board-img-tracker';
+const OLD_TRACKER_KEY = 'thought-canvas-img-tracker';
 const IMAGES_PER_DAY_THRESHOLD = 5;
 
 interface TrackerRecord {
@@ -13,7 +14,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const readTracker = (): TrackerRecord => {
   try {
-    const raw = localStorage.getItem(TRACKER_KEY);
+    let raw = localStorage.getItem(TRACKER_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(OLD_TRACKER_KEY);
+      if (raw) localStorage.setItem(TRACKER_KEY, raw);
+    }
     if (raw) return JSON.parse(raw) as TrackerRecord;
   } catch { /* ignore */ }
   return { date: today(), count: 0, lastChecked: '' };

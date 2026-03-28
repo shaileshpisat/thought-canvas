@@ -1,6 +1,6 @@
 # Changelog
 
-All user-facing changes to Thought Canvas are documented here, grouped by version.
+All user-facing changes to Black Board are documented here, grouped by version.
 
 ---
 

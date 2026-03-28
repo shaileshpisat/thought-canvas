@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CanvasItem, CanvasState } from '../types/canvas';
+import { CanvasItem, CanvasState, CanvasHistoryEntry } from '../types/canvas';
 import {
   isBase64DataUrl,
   isIdbSentinel,
@@ -20,7 +20,7 @@ const mergeCanvasItems = (existingItems: CanvasItem[], importedItems: CanvasItem
   return [...reIdedExisting, ...importedItems];
 };
 
-const STORAGE_KEY = 'thought-canvas-data';
+const STORAGE_KEY = 'black-board-data';
 
 const initialState: CanvasState = {
   items: [],
@@ -106,11 +106,88 @@ export const useCanvas = () => {
   );
 
   const updateItemAtPath = useCallback(
-    (path: string[], id: string, updates: Partial<CanvasItem>) => {
+    (path: string[], id: string, updates: Partial<CanvasItem>, historyActionLabel?: string) => {
       setState((prev) => ({
         ...prev,
         items: updateItemsAtPath(prev.items, path, (items) =>
-          items.map((item) => (item.id === id ? { ...item, ...updates } : item))
+          items.map((item) => {
+            if (item.id === id) {
+              const now = Date.now();
+              const history = [...(item.history ?? [])];
+              const pushHistory = (type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => {
+                history.push({ id: crypto.randomUUID(), type, action, timestamp: now, ...(snapshot ? { snapshot } : {}) });
+              };
+
+              // Tags
+              if (updates.tags) {
+                const oldTags = item.tags ?? [];
+                const newTags = updates.tags;
+                newTags.filter((t) => !oldTags.includes(t)).forEach((t) => pushHistory('tag', `Added tag: ${t}`));
+                oldTags.filter((t) => !newTags.includes(t)).forEach((t) => pushHistory('tag', `Removed tag: ${t}`));
+              }
+
+              // Date
+              if (Object.hasOwn(updates, 'date') && updates.date !== item.date) {
+                if (updates.date && !item.date) pushHistory('date', `Added date: ${updates.date}`);
+                else if (!updates.date && item.date) pushHistory('date', `Removed date (${item.date})`);
+                else if (updates.date) pushHistory('date', `Changed date to: ${updates.date}`);
+              }
+
+              // Content (Text blocks) - Removed automatic recording to handle it via edit session triggers
+              
+              // Geometry (Resize)
+
+              // Geometry (Resize)
+              if (
+                (updates.width !== undefined && updates.width !== item.width) ||
+                (updates.height !== undefined && updates.height !== item.height)
+              ) {
+                pushHistory('geometry', 'Resized block');
+              }
+
+              // Timer
+              if (updates.timer) {
+                if (updates.timer.isRunning && !item.timer?.isRunning) {
+                  pushHistory('timer', item.timer?.sessions?.length ? 'Resumed timer' : 'Started timer');
+                } else if (!updates.timer.isRunning && item.timer?.isRunning) {
+                  pushHistory('timer', historyActionLabel || 'Paused timer');
+                }
+              }
+
+              // Manual explicit label
+              if (historyActionLabel && !updates.timer) { // If it's timer, we already handled it above specifically
+                pushHistory('navigation', historyActionLabel);
+              }
+
+              return { ...item, ...updates, history: history.length > (item.history?.length ?? 0) ? history : item.history };
+            }
+            return item;
+          })
+        ),
+      }));
+    },
+    []
+  );
+
+  const logHistoryAtPath = useCallback(
+    (path: string[], id: string, type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => {
+      setState((prev) => ({
+        ...prev,
+        items: updateItemsAtPath(prev.items, path, (items) =>
+          items.map((item) => {
+            if (item.id === id) {
+              const history = [...(item.history ?? [])];
+              history.push({
+                id: crypto.randomUUID(),
+                type,
+                action,
+                snapshot,
+                timestamp: Date.now(),
+              });
+              return { ...item, history };
+            }
+            return item;
+          })
         ),
       }));
     },
@@ -139,7 +216,20 @@ export const useCanvas = () => {
       setState((prev) => ({
         ...prev,
         items: updateItemsAtPath(prev.items, path, (items) =>
-          items.map((item) => (item.id === id ? { ...item, x, y } : item))
+          items.map((item) => {
+            if (item.id === id) {
+              if (item.type === 'canvas') return { ...item, x, y };
+              const history = [...(item.history ?? [])];
+              history.push({
+                id: crypto.randomUUID(),
+                type: 'geometry',
+                action: 'Moved block',
+                timestamp: Date.now(),
+              });
+              return { ...item, x, y, history };
+            }
+            return item;
+          })
         ),
       }));
     },
@@ -154,8 +244,8 @@ export const useCanvas = () => {
   );
 
   const updateItem = useCallback(
-    (id: string, updates: Partial<CanvasItem>) =>
-      updateItemAtPath([], id, updates),
+    (id: string, updates: Partial<CanvasItem>, historyActionLabel?: string) =>
+      updateItemAtPath([], id, updates, historyActionLabel),
     [updateItemAtPath]
   );
 
@@ -175,7 +265,24 @@ export const useCanvas = () => {
         let newItems = updateItemsAtPath(prev.items, fromPath, (items) =>
           items.filter((i) => i.id !== item.id)
         );
-        const movedItem = newX !== undefined ? { ...item, x: newX, y: newY ?? item.y } : item;
+
+        const history = [...(item.history ?? [])];
+        if (item.type !== 'canvas') {
+          const into = toPath.length > fromPath.length;
+          history.push({
+            id: crypto.randomUUID(),
+            type: 'navigation',
+            action: into ? 'Moved into sub-canvas' : 'Moved out to parent canvas',
+            timestamp: Date.now(),
+          });
+        }
+
+        const movedItem = {
+          ...item,
+          ...(newX !== undefined ? { x: newX, y: newY ?? item.y } : {}),
+          history: history.length > (item.history?.length ?? 0) ? history : item.history,
+        };
+
         newItems = updateItemsAtPath(newItems, toPath, (items) => [...items, movedItem]);
         return { ...prev, items: newItems };
       });
@@ -212,6 +319,7 @@ export const useCanvas = () => {
     removeItemAtPath,
     moveItemAtPath,
     moveItemBetweenPaths,
+    logHistoryAtPath,
     clearCanvas,
     loadState,
     mergeItems,
