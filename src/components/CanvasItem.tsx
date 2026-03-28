@@ -106,6 +106,25 @@ const MD_COMPONENTS = {
     ),
 };
 
+const DURATION_PRESETS = [
+    { label: '15 min', minutes: 15 },
+    { label: '30 min', minutes: 30 },
+    { label: '45 min', minutes: 45 },
+    { label: '1 hour', minutes: 60 },
+    { label: '1.5 hours', minutes: 90 },
+    { label: '2 hours', minutes: 120 },
+    { label: '3 hours', minutes: 180 },
+    { label: '4 hours', minutes: 240 },
+    { label: 'All day', minutes: 480 },
+];
+
+function formatBlockDuration(minutes: number): string {
+    if (minutes < 60) return `${minutes}m`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m === 0 ? `${h}h` : `${h}h${m}m`;
+}
+
 const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
     const src = useImageSrc(content);
     return src
@@ -123,6 +142,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [isResizing, setIsResizing] = useState(false);
     const [showMoveInto, setShowMoveInto] = useState(false);
     const [showPriority, setShowPriority] = useState(false);
+    const [showDuration, setShowDuration] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
     const [isLogging, setIsLogging] = useState(false);
@@ -137,6 +157,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const renameInputRef = useRef<HTMLInputElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const dateInputRef = useRef<HTMLInputElement>(null);
+    const timeInputRef = useRef<HTMLInputElement>(null);
     const logInputRef = useRef<HTMLInputElement>(null);
     const tagInputRef = useRef<HTMLInputElement>(null);
     const isDragging = useRef(false);
@@ -283,6 +304,16 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 (dateInputRef.current as any).showPicker();
             } catch {
                 dateInputRef.current.click();
+            }
+        }
+    };
+
+    const handleTimeClick = () => {
+        if (timeInputRef.current) {
+            try {
+                (timeInputRef.current as any).showPicker();
+            } catch {
+                timeInputRef.current.click();
             }
         }
     };
@@ -729,18 +760,76 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         : 'text-sky-400 hover:text-sky-300'
                                     : 'text-white/40 hover:text-sky-400'
                             }`}
-                            title={item.date ? `Date: ${item.date} — click to change` : 'Add date'}
+                            title={item.date ? `Date: ${item.date}${item.time ? ` ${item.time}` : ''} — click to change` : 'Add date'}
                         >
                             <Calendar size={16} />
                         </button>
                         {item.date && (
-                            <button
-                                onClick={() => onUpdate(item.id, { date: undefined })}
-                                className="p-1.5 text-white/25 hover:text-red-400 transition-colors"
-                                title="Remove date"
-                            >
-                                <X size={13} />
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleTimeClick}
+                                    className={`p-1.5 transition-colors ${item.time ? 'text-sky-400 hover:text-sky-300' : 'text-white/25 hover:text-sky-400'}`}
+                                    title={item.time ? `Time: ${item.time} — click to change` : 'Add time'}
+                                >
+                                    <Clock size={13} />
+                                </button>
+                                {item.time && (
+                                    <>
+                                        <button
+                                            onClick={() => onUpdate(item.id, { time: undefined, duration: undefined })}
+                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors -ml-1"
+                                            title="Remove time"
+                                        >
+                                            <X size={11} />
+                                        </button>
+                                        {/* Duration picker */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setShowDuration(v => !v)}
+                                                className={`p-1.5 transition-colors flex items-center gap-0.5 text-[10px] font-mono ${item.duration ? 'text-violet-400 hover:text-violet-300' : 'text-white/25 hover:text-sky-400'}`}
+                                                title={item.duration ? `Duration: ${formatBlockDuration(item.duration)} — click to change` : 'Add duration'}
+                                            >
+                                                {item.duration ? formatBlockDuration(item.duration) : <><ArrowRight size={11} className="rotate-90" /><span className="sr-only">duration</span></>}
+                                            </button>
+                                            {showDuration && (
+                                                <div
+                                                    className="absolute top-full left-0 mt-1 z-[200] min-w-[120px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                                    style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                                                >
+                                                    <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Duration</div>
+                                                    {DURATION_PRESETS.map(({ label, minutes }) => (
+                                                        <button
+                                                            key={minutes}
+                                                            onClick={() => { onUpdate(item.id, { duration: item.duration === minutes ? undefined : minutes }); setShowDuration(false); }}
+                                                            className={`w-full text-left px-3 py-2 text-xs hover:bg-white/8 transition-colors ${item.duration === minutes ? 'text-violet-400 font-semibold' : 'text-white/60'}`}
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    ))}
+                                                    {item.duration && (
+                                                        <>
+                                                            <div className="border-t border-white/8 mx-2" />
+                                                            <button
+                                                                onClick={() => { onUpdate(item.id, { duration: undefined }); setShowDuration(false); }}
+                                                                className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
+                                                            >
+                                                                Clear
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                                <button
+                                    onClick={() => onUpdate(item.id, { date: undefined, time: undefined, duration: undefined })}
+                                    className="p-1.5 text-white/25 hover:text-red-400 transition-colors"
+                                    title="Remove date"
+                                >
+                                    <X size={13} />
+                                </button>
+                            </>
                         )}
                         <input
                             ref={dateInputRef}
@@ -748,6 +837,13 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             className="absolute opacity-0 w-0 h-0 pointer-events-none overflow-hidden"
                             value={item.date || ''}
                             onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
+                        />
+                        <input
+                            ref={timeInputRef}
+                            type="time"
+                            className="absolute opacity-0 w-0 h-0 pointer-events-none overflow-hidden"
+                            value={item.time || ''}
+                            onChange={(e) => onUpdate(item.id, { time: e.target.value || undefined })}
                         />
 
                         <div className="w-[1px] h-4 bg-white/10" />
@@ -886,7 +982,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             }
                         `}
                     >
-                        {dateLabel}
+                        {dateLabel}{item.time && <span className="ml-1 opacity-70">{item.time}{item.duration && <span className="ml-1">·{formatBlockDuration(item.duration)}</span>}</span>}
                     </div>
                 )}
 

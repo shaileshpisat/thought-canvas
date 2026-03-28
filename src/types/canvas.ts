@@ -33,6 +33,8 @@ export interface CanvasItem {
   height?: number;
   content: string; // text content, image URL, link URL, or canvas name
   date?: string; // ISO date string YYYY-MM-DD
+  time?: string; // HH:MM (24-hour)
+  duration?: number; // minutes
   priority?: Priority;
   tags?: string[];
   timer?: CanvasTimer;

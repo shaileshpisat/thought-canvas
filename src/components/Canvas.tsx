@@ -15,6 +15,7 @@ import {
     Download,
     Upload,
     CalendarDays,
+    ClipboardList,
     ChevronLeft,
     Search,
     Settings,
@@ -30,6 +31,7 @@ import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
 import { DateFilterPanel } from './DateFilterPanel';
 import { CalendarBoard } from './CalendarBoard';
+import { PlanBoard } from './PlanBoard';
 import { QuickEntryBar, SubCanvasSuggestion } from './QuickEntryBar';
 import { getAllSubCanvases } from '@/utils/searchUtils';
 
@@ -75,7 +77,7 @@ export const Canvas: React.FC = () => {
     const [showSettings, setShowSettings] = React.useState(false);
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
-    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar'>('canvas');
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan'>('canvas');
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
@@ -548,8 +550,17 @@ export const Canvas: React.FC = () => {
                         />
                     ))}
                 </div>
-            ) : (
+            ) : viewMode === 'calendar' ? (
                 <CalendarBoard
+                    items={state.items}
+                    onClose={() => setViewMode('canvas')}
+                    onNavigateToItem={(item, path) => {
+                        setNavigationPath(path);
+                        setViewMode('canvas');
+                    }}
+                />
+            ) : (
+                <PlanBoard
                     items={state.items}
                     onClose={() => setViewMode('canvas')}
                     onNavigateToItem={(item, path) => {
@@ -684,6 +695,18 @@ export const Canvas: React.FC = () => {
                     >
                         <CalendarDays size={20} className={viewMode === 'calendar' ? 'text-sky-400' : ''} />
                         <span className="text-[9px] uppercase font-black tracking-widest">Week</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('plan')}
+                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
+                            viewMode === 'plan'
+                                ? 'bg-white/10 text-white shadow-inner'
+                                : 'text-white/30 hover:text-white/60'
+                        }`}
+                        title="Switch to Plan View"
+                    >
+                        <ClipboardList size={20} className={viewMode === 'plan' ? 'text-violet-400' : ''} />
+                        <span className="text-[9px] uppercase font-black tracking-widest">Plan</span>
                     </button>
                 </div>
 

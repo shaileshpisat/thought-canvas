@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ArrowLeft, Calendar as CalendarIcon, Clock, Tag, Flag, Layers, X } from 'lucide-react';
 import { CanvasItem, CanvasHistoryEntry } from '@/types/canvas';
 
@@ -25,7 +25,13 @@ interface CalendarData {
 
 export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [now, setNow] = useState(new Date());
   const [pinnedPopup, setPinnedPopup] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [fullHistoryModal, setFullHistoryModal] = useState<{ item: CalendarItemData; entries: CanvasHistoryEntry[]; dateStr: string } | null>(null);
 
   const calendarData = useMemo(() => {
@@ -139,6 +145,15 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
 
             <span className="text-white/30 text-base font-medium">
               {formatDateLabel(weekDays[0])} — {formatDateLabel(weekDays[6])}
+            </span>
+          </div>
+
+          <div className="h-8 w-px bg-white/10" />
+
+          <div className="flex items-center gap-2 text-white/60">
+            <Clock size={16} className="text-sky-400/70" />
+            <span className="text-lg font-mono font-semibold tabular-nums tracking-wider">
+              {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
             </span>
           </div>
         </div>
