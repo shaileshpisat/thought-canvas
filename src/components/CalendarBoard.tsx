@@ -245,14 +245,11 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                   const itemsOnDay = calendarData.blocksWithDate[dateStr] || [];
                   const historyBlocksOnDay = calendarData.blocksWithHistory[dateStr];
 
-                  // Build slot → blocks map for yellow dots (slot: 'pre' | 10-20 | 'post')
+                  // Build slot → blocks map: one dot per block per slot it has activity in
                   type SlotKey = 'pre' | number | 'post';
-                  const slotMap = new Map<SlotKey, Array<{ item: CalendarItemData; entries: CanvasHistoryEntry[]; tagsInHistory: Set<string> }>>();
+                  const slotMap = new Map<SlotKey, Array<{ item: CalendarItemData; slotEntries: CanvasHistoryEntry[]; allEntries: CanvasHistoryEntry[]; tagsInHistory: Set<string> }>>();
                   if (historyBlocksOnDay) {
                     historyBlocksOnDay.forEach(({ item, entries }) => {
-                      const latestHour = new Date(Math.max(...entries.map(e => e.timestamp))).getHours();
-                      const sk = slotKey(latestHour);
-                      if (!slotMap.has(sk)) slotMap.set(sk, []);
                       const tagsInHistory = new Set<string>();
                       entries.forEach(e => {
                         if (e.type === 'tag') {
@@ -260,7 +257,17 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                           if (match) tagsInHistory.add(match[1]);
                         }
                       });
-                      slotMap.get(sk)!.push({ item, entries, tagsInHistory });
+                      // Group entries by slot
+                      const bySlot = new Map<SlotKey, CanvasHistoryEntry[]>();
+                      entries.forEach(e => {
+                        const sk = slotKey(new Date(e.timestamp).getHours());
+                        if (!bySlot.has(sk)) bySlot.set(sk, []);
+                        bySlot.get(sk)!.push(e);
+                      });
+                      bySlot.forEach((slotEntries, sk) => {
+                        if (!slotMap.has(sk)) slotMap.set(sk, []);
+                        slotMap.get(sk)!.push({ item, slotEntries, allEntries: entries, tagsInHistory });
+                      });
                     });
                   }
 
@@ -297,7 +304,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                       {item.tags.map(t => <span key={t} className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] font-bold text-white/40 flex items-center gap-1"><Tag size={7} />{t}</span>)}
                                     </div>
                                   )}
-                                  <button onClick={() => { setPinnedPopup(null); onNavigateToItem(item, path); }} className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/40 text-[11px] font-bold uppercase tracking-widest text-green-400/70 hover:text-green-300 transition-all">
+                                  <button onClick={() => { setPinnedPopup(null); onNavigateToItem(item, path); }} className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/40 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-green-400/70 hover:text-green-300 transition-all">
                                     Show on Canvas
                                   </button>
                                 </div>
@@ -326,20 +333,21 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                         const blocks = slotMap.get('pre') || [];
                         return (
                           <div className="border-b border-white/[0.06] relative px-1.5 py-1 flex flex-wrap gap-1 items-start bg-white/[0.005] hover:bg-white/[0.01] transition-colors" style={{ height: '56px' }}>
-                            {blocks.map(({ item, entries, tagsInHistory }) => {
-                              const isYellowPinned = pinnedPopup === `yellow-${item.item.id}`;
+                            {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
+                              const dotKey = `yellow-${item.item.id}-pre`;
+                              const isYellowPinned = pinnedPopup === dotKey;
                               return (
-                                <div key={item.item.id} className="relative group flex items-center gap-0.5">
-                                  <button onClick={() => setPinnedPopup(isYellowPinned ? null : `yellow-${item.item.id}`)} className={`w-3 h-3 rounded-full transition-all hover:scale-125 active:scale-95 shrink-0 ${isYellowPinned ? 'bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-110' : 'bg-amber-500/80 hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]'}`} />
+                                <div key={dotKey} className="relative group flex items-center gap-0.5">
+                                  <button onClick={() => setPinnedPopup(isYellowPinned ? null : dotKey)} className={`w-3 h-3 rounded-full transition-all hover:scale-125 active:scale-95 shrink-0 ${isYellowPinned ? 'bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-110' : 'bg-amber-500/80 hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]'}`} />
                                   {item.item.priority && <Flag size={9} className={`shrink-0 ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`} />}
                                   <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isYellowPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                     <div className="bg-[#0b101c] p-5 rounded-[24px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                       <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-amber-500/40`} />
-                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {entries.length} {entries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
                                       <div className="flex flex-wrap items-center gap-3 mb-4 opacity-80">{item.item.date && <div className="flex items-center gap-1.5 text-sm font-bold text-white/30 uppercase tracking-wider"><CalendarIcon size={11} />{item.item.date}</div>}{item.item.priority && <div className={`flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`}><Flag size={11} />{item.item.priority.replace('-', ' ')}</div>}{item.item.tags && item.item.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{item.item.tags.slice(0, 4).map(t => <span key={t} className={`text-[11px] font-bold ${tagsInHistory.has(t) ? 'text-amber-400 bg-amber-400/10 px-1 rounded' : 'text-white/20'}`}>#{t}</span>)}{item.item.tags.length > 4 && <span className="text-[11px] text-white/10">+{item.item.tags.length - 4}</span>}</div>}</div>
-                                      <div className="space-y-2.5">{[...entries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{entries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {entries.length - 8} more entries</div>}</div>
-                                      <div className="mt-4 flex gap-2"><button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-bold uppercase tracking-widest text-amber-400/70 hover:text-amber-300 transition-all">Show on Canvas</button><button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-bold uppercase tracking-widest text-amber-300/80 hover:text-amber-200 transition-all">Show Full History</button></div>
+                                      <div className="space-y-2.5">{[...slotEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{slotEntries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {slotEntries.length - 8} more entries</div>}</div>
+                                      <div className="mt-4 flex gap-2"><button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-400/70 hover:text-amber-300 transition-all">Show on Canvas</button><button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries: allEntries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-300/80 hover:text-amber-200 transition-all">Show Full History</button></div>
                                     </div>
                                   </div>
                                 </div>
@@ -360,12 +368,13 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                             style={{ height: '48px' }}
                           >
                             {isCurrentHour && <div className="absolute left-0 top-0 w-full h-px bg-sky-400/40" />}
-                            {blocks.map(({ item, entries, tagsInHistory }) => {
-                              const isYellowPinned = pinnedPopup === `yellow-${item.item.id}`;
+                            {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
+                              const dotKey = `yellow-${item.item.id}-${hour}`;
+                              const isYellowPinned = pinnedPopup === dotKey;
                               return (
-                                <div key={item.item.id} className="relative group flex items-center gap-0.5">
+                                <div key={dotKey} className="relative group flex items-center gap-0.5">
                                   <button
-                                    onClick={() => setPinnedPopup(isYellowPinned ? null : `yellow-${item.item.id}`)}
+                                    onClick={() => setPinnedPopup(isYellowPinned ? null : dotKey)}
                                     className={`w-3 h-3 rounded-full transition-all hover:scale-125 active:scale-95 shrink-0 ${isYellowPinned ? 'bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-110' : 'bg-amber-500/80 hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]'}`}
                                   />
                                   {item.item.priority && <Flag size={9} className={`shrink-0 ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`} />}
@@ -377,7 +386,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                         <Clock size={13} className="text-amber-400 shrink-0" />
                                         <span>
                                           {(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}
-                                          <span className="text-white/30 font-bold text-sm ml-1.5">— {entries.length} {entries.length === 1 ? 'action' : 'actions'}</span>
+                                          <span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span>
                                         </span>
                                       </h4>
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
@@ -392,19 +401,19 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                         )}
                                       </div>
                                       <div className="space-y-2.5">
-                                        {[...entries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (
+                                        {[...slotEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (
                                           <div key={entry.id} className="flex gap-3.5">
                                             <span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             <span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span>
                                           </div>
                                         ))}
-                                        {entries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {entries.length - 8} more entries</div>}
+                                        {slotEntries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {slotEntries.length - 8} more entries</div>}
                                       </div>
                                       <div className="mt-4 flex gap-2">
-                                        <button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-bold uppercase tracking-widest text-amber-400/70 hover:text-amber-300 transition-all">
+                                        <button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-400/70 hover:text-amber-300 transition-all">
                                           Show on Canvas
                                         </button>
-                                        <button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-bold uppercase tracking-widest text-amber-300/80 hover:text-amber-200 transition-all">
+                                        <button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries: allEntries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-300/80 hover:text-amber-200 transition-all">
                                           Show Full History
                                         </button>
                                       </div>
@@ -422,20 +431,21 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                         const blocks = slotMap.get('post') || [];
                         return (
                           <div className="border-b border-white/[0.06] relative px-1.5 py-1 flex flex-wrap gap-1 items-start bg-white/[0.005] hover:bg-white/[0.01] transition-colors" style={{ height: '56px' }}>
-                            {blocks.map(({ item, entries, tagsInHistory }) => {
-                              const isYellowPinned = pinnedPopup === `yellow-${item.item.id}`;
+                            {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
+                              const dotKey = `yellow-${item.item.id}-post`;
+                              const isYellowPinned = pinnedPopup === dotKey;
                               return (
-                                <div key={item.item.id} className="relative group flex items-center gap-0.5">
-                                  <button onClick={() => setPinnedPopup(isYellowPinned ? null : `yellow-${item.item.id}`)} className={`w-3 h-3 rounded-full transition-all hover:scale-125 active:scale-95 shrink-0 ${isYellowPinned ? 'bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-110' : 'bg-amber-500/80 hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]'}`} />
+                                <div key={dotKey} className="relative group flex items-center gap-0.5">
+                                  <button onClick={() => setPinnedPopup(isYellowPinned ? null : dotKey)} className={`w-3 h-3 rounded-full transition-all hover:scale-125 active:scale-95 shrink-0 ${isYellowPinned ? 'bg-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-110' : 'bg-amber-500/80 hover:bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]'}`} />
                                   {item.item.priority && <Flag size={9} className={`shrink-0 ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`} />}
                                   <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isYellowPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                     <div className="bg-[#0b101c] p-5 rounded-[24px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                       <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-amber-500/40`} />
-                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {entries.length} {entries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
                                       <div className="flex flex-wrap items-center gap-3 mb-4 opacity-80">{item.item.date && <div className="flex items-center gap-1.5 text-sm font-bold text-white/30 uppercase tracking-wider"><CalendarIcon size={11} />{item.item.date}</div>}{item.item.priority && <div className={`flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`}><Flag size={11} />{item.item.priority.replace('-', ' ')}</div>}{item.item.tags && item.item.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{item.item.tags.slice(0, 4).map(t => <span key={t} className={`text-[11px] font-bold ${tagsInHistory.has(t) ? 'text-amber-400 bg-amber-400/10 px-1 rounded' : 'text-white/20'}`}>#{t}</span>)}{item.item.tags.length > 4 && <span className="text-[11px] text-white/10">+{item.item.tags.length - 4}</span>}</div>}</div>
-                                      <div className="space-y-2.5">{[...entries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{entries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {entries.length - 8} more entries</div>}</div>
-                                      <div className="mt-4 flex gap-2"><button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-bold uppercase tracking-widest text-amber-400/70 hover:text-amber-300 transition-all">Show on Canvas</button><button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-bold uppercase tracking-widest text-amber-300/80 hover:text-amber-200 transition-all">Show Full History</button></div>
+                                      <div className="space-y-2.5">{[...slotEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{slotEntries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {slotEntries.length - 8} more entries</div>}</div>
+                                      <div className="mt-4 flex gap-2"><button onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-400/70 hover:text-amber-300 transition-all">Show on Canvas</button><button onClick={() => { setPinnedPopup(null); setFullHistoryModal({ item, entries: allEntries, dateStr }); }} className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 hover:border-amber-500/50 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-300/80 hover:text-amber-200 transition-all">Show Full History</button></div>
                                     </div>
                                   </div>
                                 </div>
@@ -499,13 +509,13 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
             <div className="p-4 border-t border-white/5 flex gap-2">
               <button
                 onClick={() => { setFullHistoryModal(null); onNavigateToItem(fullHistoryModal.item.item, fullHistoryModal.item.path); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-bold uppercase tracking-widest text-amber-400/70 hover:text-amber-300 transition-all"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/40 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-amber-400/70 hover:text-amber-300 transition-all"
               >
                 Show on Canvas
               </button>
               <button
                 onClick={() => setFullHistoryModal(null)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold uppercase tracking-widest text-white/30 hover:text-white/60 transition-all"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold normal-case tracking-normal whitespace-nowrap text-white/30 hover:text-white/60 transition-all"
               >
                 Close
               </button>

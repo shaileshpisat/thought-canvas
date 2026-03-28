@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Search, X, Type, Image as ImageIcon, Link as LinkIcon, Layers, ChevronRight, Home } from 'lucide-react';
+import { Search, X, Type, Image as ImageIcon, Link as LinkIcon, Layers, ChevronRight, Home, Hash } from 'lucide-react';
 import { CanvasItem } from '@/types/canvas';
 
 interface SearchResult {
@@ -49,6 +49,23 @@ function matchesQuery(result: SearchResult, query: string): boolean {
     return false;
 }
 
+function matchesTagQuery(result: SearchResult, tagQuery: string): boolean {
+    const q = tagQuery.toLowerCase();
+    return (result.item.tags ?? []).some(t => t.toLowerCase().includes(q));
+}
+
+function collectAllTags(items: CanvasItem[]): string[] {
+    const tags = new Set<string>();
+    const walk = (list: CanvasItem[]) => {
+        for (const item of list) {
+            (item.tags ?? []).forEach(t => tags.add(t));
+            if (item.children?.length) walk(item.children);
+        }
+    };
+    walk(items);
+    return [...tags].sort();
+}
+
 const TYPE_ICONS: Record<string, React.ReactNode> = {
     text:   <Type   size={13} className="text-sky-400/80"    />,
     image:  <ImageIcon size={13} className="text-emerald-400/80" />,
@@ -81,8 +98,22 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
     }, [onClose]);
 
     const all = flattenWithPaths(allItems);
+    const allTags = collectAllTags(allItems);
+
+    const isTagSearch = query.startsWith('#');
+    const tagQuery = isTagSearch ? query.slice(1) : '';
+
+    // Tag suggestions when user typed # but no results yet
+    const tagSuggestions = isTagSearch
+        ? allTags.filter(t => t.toLowerCase().includes(tagQuery.toLowerCase())).slice(0, 12)
+        : [];
+
     const results = query.trim()
-        ? all.filter(r => matchesQuery(r, query.trim()))
+        ? isTagSearch
+            ? tagQuery.trim()
+                ? all.filter(r => matchesTagQuery(r, tagQuery.trim()))
+                : []
+            : all.filter(r => matchesQuery(r, query.trim()))
         : [];
 
     // Reset active index when results change
@@ -126,9 +157,14 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Search cards…"
+                        placeholder="Search cards… or #tag"
                         className="flex-1 bg-transparent text-white text-sm placeholder-white/25 outline-none"
                     />
+                    {isTagSearch && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 text-[10px] font-semibold border border-sky-500/20">
+                            tag mode
+                        </span>
+                    )}
                     {query && (
                         <button onClick={() => setQuery('')} className="text-white/30 hover:text-white/60 transition-colors">
                             <X size={14} />
@@ -139,8 +175,27 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                     </button>
                 </div>
 
+                {/* Tag suggestions when # typed but no tag yet */}
+                {isTagSearch && !tagQuery.trim() && tagSuggestions.length > 0 && (
+                    <div className="max-h-[60vh] overflow-y-auto">
+                        <div className="px-4 pt-3 pb-1 text-[10px] text-white/30 uppercase tracking-wider font-semibold">All tags</div>
+                        <div className="py-1.5">
+                            {tagSuggestions.map(tag => (
+                                <button
+                                    key={tag}
+                                    onClick={() => setQuery(`#${tag}`)}
+                                    className="w-full text-left px-4 py-2 flex items-center gap-2 hover:bg-white/5 transition-colors"
+                                >
+                                    <Hash size={12} className="text-sky-400/60 shrink-0" />
+                                    <span className="text-sm text-white/70">{tag}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Results */}
-                {query.trim() && (
+                {query.trim() && (!isTagSearch || tagQuery.trim()) && (
                     <div className="max-h-[60vh] overflow-y-auto">
                         {results.length === 0 ? (
                             <div className="px-4 py-8 text-center text-white/30 text-sm">No results found</div>
@@ -161,6 +216,23 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                                             <div className="text-sm text-white/80 truncate">
                                                 {result.snippet || <span className="italic text-white/30">Empty</span>}
                                             </div>
+                                            {/* Tags */}
+                                            {result.item.tags && result.item.tags.length > 0 && (
+                                                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                    {result.item.tags.map(t => (
+                                                        <span
+                                                            key={t}
+                                                            className={`px-1.5 py-0 rounded-full text-[9px] font-semibold border ${
+                                                                isTagSearch && t.toLowerCase().includes(tagQuery.toLowerCase())
+                                                                    ? 'bg-sky-500/25 text-sky-300 border-sky-500/40'
+                                                                    : 'bg-white/5 text-white/30 border-white/10'
+                                                            }`}
+                                                        >
+                                                            #{t}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                             {/* Path breadcrumb */}
                                             <div className="flex items-center gap-1 mt-0.5 text-[10px] text-white/30">
                                                 <Home size={9} className="shrink-0" />
@@ -188,8 +260,9 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
 
                 {/* Empty state hint */}
                 {!query.trim() && (
-                    <div className="px-4 py-6 text-center text-white/20 text-xs">
-                        Type to search across all cards and canvases
+                    <div className="px-4 py-6 text-center text-white/20 text-xs space-y-1">
+                        <div>Type to search across all cards and canvases</div>
+                        <div>Use <span className="text-sky-400/50 font-mono">#tag</span> to filter by tag</div>
                     </div>
                 )}
 

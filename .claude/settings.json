@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Read(//c/Work/Git/**)",
-      "Read(//c/Work/**)"
+      "Read(//c/Work/**)",
+      "Bash(git -C \"c:/Work/Git/git-ace/black-board\" log --oneline)",
+      "Bash(grep '\"\"version\"\"' \"c:/Work/Git/git-ace/black-board/package.json\")",
+      "Read(//c/Users/sppis/.claude/projects/c--Work-Git-git-ace-black-board/memory/**)"
     ]
   }
 }
