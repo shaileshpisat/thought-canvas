@@ -293,7 +293,12 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
 
                       {/* All-day row: green dots + canvases + tags */}
                       <div className="border-b border-white/[0.06] px-2 py-1.5 flex flex-wrap gap-1 items-center bg-white/[0.01]" style={{ minHeight: '52px' }}>
-                        {itemsOnDay.map(({ item, path }) => {
+                        {[...itemsOnDay].sort((a, b) => {
+                            if (a.item.time && b.item.time) return a.item.time.localeCompare(b.item.time);
+                            if (a.item.time) return -1;
+                            if (b.item.time) return 1;
+                            return 0;
+                          }).map(({ item, path }) => {
                           const isPinned = pinnedPopup === `green-${item.id}`;
                           return (
                             <div key={item.id} className="relative group flex items-center gap-0.5">

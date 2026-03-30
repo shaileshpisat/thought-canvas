@@ -35,6 +35,7 @@ export interface CanvasItem {
   date?: string; // ISO date string YYYY-MM-DD
   time?: string; // HH:MM (24-hour)
   duration?: number; // minutes
+  recurring?: 'daily' | 'weekly' | 'weekdays' | 'biweekly' | 'monthly';
   priority?: Priority;
   tags?: string[];
   timer?: CanvasTimer;

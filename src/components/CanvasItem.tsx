@@ -125,6 +125,22 @@ function formatBlockDuration(minutes: number): string {
     return m === 0 ? `${h}h` : `${h}h${m}m`;
 }
 
+function addMinutesToTime(timeStr: string, minutes: number): string {
+    const [hh, mm] = timeStr.split(':').map(Number);
+    const total = hh * 60 + mm + minutes;
+    const eh = Math.floor(total / 60) % 24;
+    const em = total % 60;
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+}
+
+const RECURRING_OPTIONS: { value: import('@/types/canvas').CanvasItem['recurring']; label: string; icon: string }[] = [
+    { value: 'daily',    label: 'Daily',       icon: '↻' },
+    { value: 'weekdays', label: 'Weekdays',     icon: '↻' },
+    { value: 'weekly',   label: 'Weekly',       icon: '↻' },
+    { value: 'biweekly', label: 'Bi-weekly',    icon: '↻' },
+    { value: 'monthly',  label: 'Monthly',      icon: '↻' },
+];
+
 const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
     const src = useImageSrc(content);
     return src
@@ -143,6 +159,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [showMoveInto, setShowMoveInto] = useState(false);
     const [showPriority, setShowPriority] = useState(false);
     const [showDuration, setShowDuration] = useState(false);
+    const [showRecurring, setShowRecurring] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
     const [isLogging, setIsLogging] = useState(false);
@@ -776,7 +793,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 {item.time && (
                                     <>
                                         <button
-                                            onClick={() => onUpdate(item.id, { time: undefined, duration: undefined })}
+                                            onClick={() => onUpdate(item.id, { time: undefined, duration: undefined, recurring: undefined })}
                                             className="p-1.5 text-white/20 hover:text-red-400 transition-colors -ml-1"
                                             title="Remove time"
                                         >
@@ -820,10 +837,51 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                 </div>
                                             )}
                                         </div>
+                                        {/* Recurring picker — only when time + duration set */}
+                                        {item.duration && (
+                                            <div className="relative">
+                                                <button
+                                                    onClick={() => setShowRecurring(v => !v)}
+                                                    className={`p-1.5 transition-colors text-[10px] font-bold ${item.recurring ? 'text-amber-400 hover:text-amber-300' : 'text-white/25 hover:text-sky-400'}`}
+                                                    title={item.recurring ? `Repeats ${item.recurring} — click to change` : 'Set recurrence'}
+                                                >
+                                                    ↻
+                                                </button>
+                                                {showRecurring && (
+                                                    <div
+                                                        className="absolute top-full left-0 mt-1 z-[200] min-w-[130px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                                                    >
+                                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Repeat</div>
+                                                        {RECURRING_OPTIONS.map(({ value, label }) => (
+                                                            <button
+                                                                key={value}
+                                                                onClick={() => { onUpdate(item.id, { recurring: item.recurring === value ? undefined : value }); setShowRecurring(false); }}
+                                                                className={`w-full text-left px-3 py-2 text-xs hover:bg-white/8 transition-colors flex items-center gap-2 ${item.recurring === value ? 'text-amber-400 font-semibold' : 'text-white/60'}`}
+                                                            >
+                                                                <span className="text-sm leading-none">↻</span>
+                                                                {label}
+                                                            </button>
+                                                        ))}
+                                                        {item.recurring && (
+                                                            <>
+                                                                <div className="border-t border-white/8 mx-2" />
+                                                                <button
+                                                                    onClick={() => { onUpdate(item.id, { recurring: undefined }); setShowRecurring(false); }}
+                                                                    className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
+                                                                >
+                                                                    Clear
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </>
                                 )}
                                 <button
-                                    onClick={() => onUpdate(item.id, { date: undefined, time: undefined, duration: undefined })}
+                                    onClick={() => onUpdate(item.id, { date: undefined, time: undefined, duration: undefined, recurring: undefined })}
                                     className="p-1.5 text-white/25 hover:text-red-400 transition-colors"
                                     title="Remove date"
                                 >
@@ -982,7 +1040,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             }
                         `}
                     >
-                        {dateLabel}{item.time && <span className="ml-1 opacity-70">{item.time}{item.duration && <span className="ml-1">·{formatBlockDuration(item.duration)}</span>}</span>}
+                        {item.recurring && <span className="mr-1 opacity-60">↻</span>}{dateLabel}{item.time && <span className="ml-1 opacity-70">{item.time}{item.duration && <>–{addMinutesToTime(item.time, item.duration)}</>}</span>}
                     </div>
                 )}
 
