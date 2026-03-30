@@ -6,6 +6,7 @@ import { CanvasItem, CanvasHistoryEntry } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
+  recurringDays: number;
   onClose: () => void;
   onNavigateToItem: (item: CanvasItem, path: string[]) => void;
 }
@@ -15,7 +16,7 @@ interface PlanItemData {
   path: string[];
 }
 
-export const PlanBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem }) => {
+export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNavigateToItem }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [now, setNow] = useState(new Date());
   const [activePopup, setActivePopup] = useState<string | null>(null);
@@ -73,9 +74,9 @@ export const PlanBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem })
       const origin = new Date(item.date + 'T00:00:00');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      // Window ends 30 days after the origin date
+      // Window ends `recurringDays` days after the origin date
       const windowEnd = new Date(origin);
-      windowEnd.setDate(windowEnd.getDate() + 30);
+      windowEnd.setDate(windowEnd.getDate() + recurringDays);
 
       // Never show occurrences before the origin date
       const effectiveStart = origin > today ? origin : today;
@@ -132,7 +133,7 @@ export const PlanBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem })
       }
     }
     return map;
-  }, [planItems]);
+  }, [planItems, recurringDays]);
 
   const timeToMinutes = (time: string) => {
     const [h, m] = time.split(':').map(Number);

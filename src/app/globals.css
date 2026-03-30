@@ -30,6 +30,22 @@ body {
   background-size: 40px 40px;
 }
 
+/* Search navigation highlight — three pulses of sky-blue glow */
+@keyframes search-highlight {
+  0%   { box-shadow: 0 0  0px  0px rgba(56,189,248,0); }
+  10%  { box-shadow: 0 0 40px 12px rgba(56,189,248,0.60); }
+  20%  { box-shadow: 0 0 10px  3px rgba(56,189,248,0.10); }
+  35%  { box-shadow: 0 0 40px 12px rgba(56,189,248,0.60); }
+  45%  { box-shadow: 0 0 10px  3px rgba(56,189,248,0.10); }
+  60%  { box-shadow: 0 0 40px 12px rgba(56,189,248,0.60); }
+  70%  { box-shadow: 0 0 10px  3px rgba(56,189,248,0.10); }
+  85%  { box-shadow: 0 0 40px 12px rgba(56,189,248,0.60); }
+  100% { box-shadow: 0 0  0px  0px rgba(56,189,248,0); }
+}
+.search-highlight {
+  animation: search-highlight 2s ease-in-out forwards;
+}
+
 /* Timer 15-min alert — two pulses of amber glow */
 @keyframes timer-alert {
   0%   { box-shadow: 0 0  0px  0px rgba(251,191,36,0); }

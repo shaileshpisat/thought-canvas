@@ -54,6 +54,7 @@ interface Props {
     onToggleTimer?: (id: string) => void;
     onStopTimer?: (id: string) => void;
     isAlerting?: boolean;
+    isHighlighted?: boolean;
     onLogAction?: (id: string, label: string) => void;
     onDeleteAction?: (id: string, actionId: string) => void;
     tagMaster?: string[];
@@ -148,7 +149,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -686,6 +687,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 className={`
                 relative w-full h-full glass rounded-xl overflow-visible transition-all duration-200
                 ${isAlerting ? 'timer-alert' : ''}
+                ${isHighlighted ? 'search-highlight' : ''}
                 ${isHovered
                     ? item.type === 'canvas'
                         ? 'ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/10'

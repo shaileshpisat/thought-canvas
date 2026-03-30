@@ -75,7 +75,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 interface Props {
     allItems: CanvasItem[];
-    onNavigate: (path: string[]) => void;
+    onNavigate: (path: string[], itemId?: string) => void;
     onClose: () => void;
 }
 
@@ -83,6 +83,7 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
     const [query, setQuery] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
+    const [scopeCanvas, setScopeCanvas] = useState<{ id: string; name: string; path: string[] } | null>(null);
 
     useLayoutEffect(() => {
         inputRef.current?.focus();
@@ -100,26 +101,84 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
     const all = flattenWithPaths(allItems);
     const allTags = collectAllTags(allItems);
 
-    const isTagSearch = query.startsWith('#');
+    // Canvas scope parsing — mutually exclusive with tag mode
+    const isCanvasScope = query.includes('>>') && scopeCanvas === null;
+    const canvasFilterText = isCanvasScope ? query.slice(query.indexOf('>>') + 2).trim() : '';
+    const textBeforeScope = isCanvasScope ? query.slice(0, query.indexOf('>>')).trim() : '';
+
+    // Tag mode only applies when >> is not present and no scope canvas is locked
+    const isTagSearch = !isCanvasScope && scopeCanvas === null && query.startsWith('#');
     const tagQuery = isTagSearch ? query.slice(1) : '';
 
-    // Tag suggestions when user typed # but no results yet
+    // Tag suggestions
     const tagSuggestions = isTagSearch
         ? allTags.filter(t => t.toLowerCase().includes(tagQuery.toLowerCase())).slice(0, 12)
         : [];
 
-    const results = query.trim()
-        ? isTagSearch
-            ? tagQuery.trim()
-                ? all.filter(r => matchesTagQuery(r, tagQuery.trim()))
-                : []
-            : all.filter(r => matchesQuery(r, query.trim()))
+    // All canvas-type results from the flat list
+    const allCanvasResults = all.filter(r => r.item.type === 'canvas');
+
+    // Canvas suggestions shown while >> mode is active
+    const canvasSuggestions = isCanvasScope
+        ? allCanvasResults.filter(r =>
+            canvasFilterText === '' ||
+            (r.item.content || '').toLowerCase().includes(canvasFilterText.toLowerCase()),
+          )
         : [];
 
-    // Reset active index when results change
-    useEffect(() => { setActiveIndex(0); }, [results.length]);
+    // Determine the actual search query
+    const actualQuery = scopeCanvas !== null
+        ? query.trim()
+        : isCanvasScope
+            ? textBeforeScope
+            : query.trim();
+
+    // Build final results
+    let results: SearchResult[] = [];
+    if (!isCanvasScope) {
+        if (actualQuery) {
+            if (isTagSearch) {
+                results = tagQuery.trim()
+                    ? all.filter(r => matchesTagQuery(r, tagQuery.trim()))
+                    : [];
+            } else if (scopeCanvas !== null) {
+                results = all.filter(r =>
+                    r.path.includes(scopeCanvas.id) &&
+                    matchesQuery(r, actualQuery),
+                );
+            } else {
+                results = all.filter(r => matchesQuery(r, actualQuery));
+            }
+        }
+    }
+
+    // Reset active index when results or canvas suggestions change
+    useEffect(() => { setActiveIndex(0); }, [results.length, canvasSuggestions.length]);
+
+    const pickCanvasSuggestion = (r: SearchResult) => {
+        setScopeCanvas({
+            id: r.item.id,
+            name: r.item.content || 'Untitled Canvas',
+            path: [...r.path, r.item.id],
+        });
+        setQuery(textBeforeScope);
+    };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (isCanvasScope) {
+            const list = canvasSuggestions;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveIndex(i => Math.min(i + 1, list.length - 1));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveIndex(i => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter' && list[activeIndex]) {
+                pickCanvasSuggestion(list[activeIndex]);
+            }
+            return;
+        }
+
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             setActiveIndex(i => Math.min(i + 1, results.length - 1));
@@ -132,9 +191,12 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
     };
 
     const navigate = (result: SearchResult) => {
-        onNavigate(result.path);
+        onNavigate(result.path, result.item.id);
         onClose();
     };
+
+    const showResults = !isCanvasScope && actualQuery && (!isTagSearch || tagQuery.trim());
+    const showTagSuggestions = isTagSearch && !tagQuery.trim() && tagSuggestions.length > 0;
 
     return (
         // Backdrop
@@ -151,13 +213,28 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                 {/* Input row */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10">
                     <Search size={16} className="text-white/40 shrink-0" />
+
+                    {/* Canvas scope badge */}
+                    {scopeCanvas && (
+                        <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-semibold border border-purple-500/20">
+                            <Layers size={10} />
+                            {scopeCanvas.name}
+                            <button
+                                onClick={() => { setScopeCanvas(null); }}
+                                className="ml-0.5 hover:text-white transition-colors"
+                            >
+                                <X size={10} />
+                            </button>
+                        </span>
+                    )}
+
                     <input
                         ref={inputRef}
                         autoFocus
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Search cards… or #tag"
+                        placeholder="Search cards… #tag or >> canvas"
                         className="flex-1 bg-transparent text-white text-sm placeholder-white/25 outline-none"
                     />
                     {isTagSearch && (
@@ -165,8 +242,11 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                             tag mode
                         </span>
                     )}
-                    {query && (
-                        <button onClick={() => setQuery('')} className="text-white/30 hover:text-white/60 transition-colors">
+                    {(query || scopeCanvas) && (
+                        <button
+                            onClick={() => { setQuery(''); setScopeCanvas(null); }}
+                            className="text-white/30 hover:text-white/60 transition-colors"
+                        >
                             <X size={14} />
                         </button>
                     )}
@@ -175,8 +255,46 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                     </button>
                 </div>
 
+                {/* Canvas scope suggestions */}
+                {isCanvasScope && (
+                    <div className="max-h-[60vh] overflow-y-auto">
+                        <div className="px-4 pt-3 pb-1 text-[10px] text-white/30 uppercase tracking-wider font-semibold">
+                            Select a canvas to search within
+                        </div>
+                        <div className="py-1.5">
+                            {canvasSuggestions.length === 0 ? (
+                                <div className="px-4 py-4 text-center text-white/25 text-sm">No canvases found</div>
+                            ) : canvasSuggestions.map((r, i) => (
+                                <button
+                                    key={r.item.id}
+                                    onClick={() => pickCanvasSuggestion(r)}
+                                    onMouseEnter={() => setActiveIndex(i)}
+                                    className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
+                                        i === activeIndex ? 'bg-white/8' : 'hover:bg-white/5'
+                                    }`}
+                                >
+                                    <Layers size={13} className="text-purple-400/80 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-sm text-white/80 truncate">{r.item.content || 'Untitled Canvas'}</div>
+                                        <div className="flex items-center gap-1 mt-0.5 text-[10px] text-white/30">
+                                            <Home size={9} className="shrink-0" />
+                                            {r.pathLabels.map((label, pi) => (
+                                                <React.Fragment key={pi}>
+                                                    <ChevronRight size={8} className="shrink-0" />
+                                                    <span className="truncate max-w-[100px]">{label}</span>
+                                                </React.Fragment>
+                                            ))}
+                                            {r.pathLabels.length === 0 && <span>Root canvas</span>}
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Tag suggestions when # typed but no tag yet */}
-                {isTagSearch && !tagQuery.trim() && tagSuggestions.length > 0 && (
+                {showTagSuggestions && (
                     <div className="max-h-[60vh] overflow-y-auto">
                         <div className="px-4 pt-3 pb-1 text-[10px] text-white/30 uppercase tracking-wider font-semibold">All tags</div>
                         <div className="py-1.5">
@@ -195,7 +313,7 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                 )}
 
                 {/* Results */}
-                {query.trim() && (!isTagSearch || tagQuery.trim()) && (
+                {showResults && (
                     <div className="max-h-[60vh] overflow-y-auto">
                         {results.length === 0 ? (
                             <div className="px-4 py-8 text-center text-white/30 text-sm">No results found</div>
@@ -259,10 +377,18 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                 )}
 
                 {/* Empty state hint */}
-                {!query.trim() && (
+                {!query.trim() && !scopeCanvas && (
                     <div className="px-4 py-6 text-center text-white/20 text-xs space-y-1">
                         <div>Type to search across all cards and canvases</div>
                         <div>Use <span className="text-sky-400/50 font-mono">#tag</span> to filter by tag</div>
+                        <div>Use <span className="text-purple-400/50 font-mono">{'>>'}</span> to search within a sub-canvas</div>
+                    </div>
+                )}
+
+                {/* Scoped empty hint — scope locked but no query yet */}
+                {scopeCanvas && !query.trim() && (
+                    <div className="px-4 py-6 text-center text-white/20 text-xs">
+                        Type to search within <span className="text-purple-400/50">{scopeCanvas.name}</span>
                     </div>
                 )}
 
@@ -270,7 +396,13 @@ export const SearchPanel: React.FC<Props> = ({ allItems, onNavigate, onClose }) 
                 <div className="px-4 py-2 border-t border-white/8 flex items-center gap-4 text-[10px] text-white/20">
                     <span>↑↓ navigate</span>
                     <span>↵ open</span>
-                    <span className="ml-auto">{results.length > 0 ? `${results.length} result${results.length !== 1 ? 's' : ''}` : ''}</span>
+                    <span className="ml-auto">
+                        {isCanvasScope && canvasSuggestions.length > 0
+                            ? `${canvasSuggestions.length} canvas${canvasSuggestions.length !== 1 ? 'es' : ''}`
+                            : results.length > 0
+                                ? `${results.length} result${results.length !== 1 ? 's' : ''}`
+                                : ''}
+                    </span>
                 </div>
             </div>
         </div>

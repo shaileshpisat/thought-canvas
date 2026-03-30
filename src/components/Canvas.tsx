@@ -25,6 +25,7 @@ import {
     Play,
     Square,
     Timer,
+    UserCircle,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -75,6 +76,14 @@ export const Canvas: React.FC = () => {
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
+    const [showProfileMenu, setShowProfileMenu] = React.useState(false);
+    const [highlightedItemId, setHighlightedItemId] = React.useState<string | null>(null);
+    const [recurringDays, setRecurringDays] = React.useState<number>(() => {
+        try {
+            const s = localStorage.getItem('black-board-settings');
+            return s ? (JSON.parse(s).recurringDays ?? 30) : 30;
+        } catch { return 30; }
+    });
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
     const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan'>('canvas');
@@ -497,24 +506,6 @@ export const Canvas: React.FC = () => {
 
     return (
         <div className="relative w-screen h-screen overflow-hidden bg-canvas-bg canvas-bg">
-            {/* Sub-canvas navigation breadcrumbs */}
-            <div className="fixed top-24 left-8 z-[100] flex items-center gap-2 animate-in slide-in-from-left-4">
-                {navigationPath.map((id, index) => {
-                    const labels = getBreadcrumbLabels(state.items, navigationPath.slice(0, index + 1));
-                    const label = labels[labels.length - 1];
-                    return (
-                        <React.Fragment key={id}>
-                            <ChevronRight size={14} className="text-white/20" />
-                            <button
-                                onClick={() => navigateTo(index + 1)}
-                                className="text-xs font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 transition-colors"
-                            >
-                                {label}
-                            </button>
-                        </React.Fragment>
-                    );
-                })}
-            </div>
 
             {viewMode === 'canvas' ? (
 
@@ -539,6 +530,7 @@ export const Canvas: React.FC = () => {
                             onToggleTimer={handleToggleTimer}
                             onStopTimer={handleStopTimer}
                             isAlerting={alertingIds.has(item.id)}
+                            isHighlighted={highlightedItemId === item.id}
                             onLogAction={handleLogAction}
                             onDeleteAction={handleDeleteAction}
                             tagMaster={tagMaster}
@@ -562,6 +554,7 @@ export const Canvas: React.FC = () => {
             ) : (
                 <PlanBoard
                     items={state.items}
+                    recurringDays={recurringDays}
                     onClose={() => setViewMode('canvas')}
                     onNavigateToItem={(item, path) => {
                         setNavigationPath(path);
@@ -639,7 +632,7 @@ export const Canvas: React.FC = () => {
 
             {/* Breadcrumb — only visible when inside a sub-canvas */}
             {navigationPath.length > 0 && (
-                <div className="fixed top-20 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 glass rounded-xl shadow-xl z-[100] animate-in slide-in-from-top-4">
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-1.5 rounded-xl shadow-xl z-[99999] animate-in slide-in-from-top-4 bg-[#0b101c]/80 border border-white/20 backdrop-blur-md">
                     <button
                         onClick={() => setNavigationPath([])}
                         className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/60 hover:text-white"
@@ -855,70 +848,40 @@ export const Canvas: React.FC = () => {
                         </button>
                     </>
                 )}
-            </div>
 
-            {/* App Header */}
-            <div className="fixed top-6 left-8 z-[100] flex items-start gap-2">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 glass rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg shadow-sky-500/10">
-                        <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
-                    </div>
-                    <div>
-                        <div className="flex items-baseline gap-2">
-                            <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-                                Black Board
-                            </h1>
-                            <button
-                                onClick={() => setShowChangelog(true)}
-                                className="text-[10px] font-mono text-white/25 tracking-wider hover:text-sky-400/70 transition-colors cursor-pointer"
-                            >v1.4.3</button>
-                        </div>
-                        <p className="text-xs text-white/30 font-medium tracking-wide uppercase">The Spatial Thinking Board</p>
-                        <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
-                            Developed &amp; managed by
-                            <a href="https://allwebtech.in" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-white/50 transition-colors">
-                                <img src="https://www.google.com/s2/favicons?domain=allwebtech.in&sz=16" alt="" className="w-3 h-3 rounded-sm" />
-                                <span className="font-bold text-[11px]" style={{ color: '#1256c1' }}>AllWebTech</span>
-                            </a>
-                        </p>
-                    </div>
-                </div>
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
                     onClick={() => setShowSearch(true)}
-                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
                     title="Search (Ctrl+K)"
                 >
-                    <Search size={12} />
-                    Search
+                    <Search size={20} className="text-white/60 group-hover:text-sky-400 transition-colors" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Search</span>
                 </button>
 
-                <button
-                    onClick={() => setShowSettings(true)}
-                    className="mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-white/40 hover:text-sky-400 hover:border-sky-500/30 transition-all flex items-center gap-2"
-                >
-                    <Settings size={12} />
-                    Settings
-                </button>
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <div className="relative group/datebtn">
                     <button
                         onClick={() => setShowDateCalendar((v) => !v)}
-                        className={`mt-1 h-7 px-3 glass rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2
-                            ${showDateCalendar ? 'text-sky-400 border-sky-500/30' : overdueCount > 0 ? 'text-red-400/70 hover:text-red-400' : 'text-white/40 hover:text-sky-400 hover:border-sky-500/30'}
+                        className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group
+                            ${showDateCalendar ? 'text-sky-400' : overdueCount > 0 ? 'text-red-400/70 hover:text-red-400' : 'text-white/60 hover:text-white/90'}
                         `}
                     >
-                        <CalendarDays size={12} />
-                        Dates
-                        {itemsWithDate.length > 0 && (
-                            <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black ${overdueCount > 0 ? 'bg-red-500/20 text-red-400' : 'bg-sky-500/20 text-sky-400'}`}>
-                                {itemsWithDate.length}
-                            </span>
-                        )}
+                        <div className="relative">
+                            <CalendarDays size={20} className={`transition-colors ${showDateCalendar ? 'text-sky-400' : overdueCount > 0 ? 'text-red-400/70' : 'text-white/60 group-hover:text-sky-400'}`} />
+                            {itemsWithDate.length > 0 && (
+                                <span className={`absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[8px] font-black ${overdueCount > 0 ? 'bg-red-500/80 text-red-100' : 'bg-sky-500/80 text-sky-100'}`}>
+                                    {itemsWithDate.length > 9 ? '9+' : itemsWithDate.length}
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Dates</span>
                     </button>
 
                     {/* Hover stats tooltip */}
-                    <div className="absolute top-full left-0 mt-2 z-[150] w-44 rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 opacity-0 group-hover/datebtn:opacity-100 pointer-events-none transition-opacity duration-150 p-3 w-48 text-[10px]"
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[150] w-48 rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 opacity-0 group-hover/datebtn:opacity-100 pointer-events-none transition-opacity duration-150 p-3 text-[10px]"
                         style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
                         <div className="font-bold text-white/40 uppercase tracking-wider mb-2 text-[9px]">Date Stats</div>
                         {itemsWithDate.length === 0
@@ -954,7 +917,7 @@ export const Canvas: React.FC = () => {
                         }
                     </div>
 
-                    {/* Click calendar — shown below the button */}
+                    {/* Click calendar — shown above the button */}
                     {showDateCalendar && (() => {
                         const yr = hoverCalMonth.getFullYear();
                         const mo = hoverCalMonth.getMonth();
@@ -976,7 +939,7 @@ export const Canvas: React.FC = () => {
                         }
                         return (
                             <div
-                                className="absolute top-full left-0 mt-8 z-[160] rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 p-3 w-56 animate-in fade-in slide-in-from-top-2 duration-150"
+                                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 z-[160] rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 p-3 w-56 animate-in fade-in slide-in-from-bottom-2 duration-150"
                                 style={{ background: 'rgba(6, 10, 20, 0.99)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
                             >
                                 {/* Month nav */}
@@ -1044,8 +1007,78 @@ export const Canvas: React.FC = () => {
                         );
                     })()}
                 </div>
+            </div>
+
+            {/* App Header */}
+            <div className="fixed top-6 left-8 z-[100] flex items-start gap-2">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 glass rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg shadow-sky-500/10">
+                        <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+                    </div>
+                    <div>
+                        <div className="flex items-baseline gap-2">
+                            <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+                                Black Board
+                            </h1>
+                            <button
+                                onClick={() => setShowChangelog(true)}
+                                className="text-[10px] font-mono text-white/25 tracking-wider hover:text-sky-400/70 transition-colors cursor-pointer"
+                            >v1.4.3</button>
+                        </div>
+                        <p className="text-xs text-white/30 font-medium tracking-wide uppercase">The Spatial Thinking Board</p>
+                        <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
+                            Developed &amp; managed by
+                            <a href="https://allwebtech.in" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-white/50 transition-colors">
+                                <img src="https://www.google.com/s2/favicons?domain=allwebtech.in&sz=16" alt="" className="w-3 h-3 rounded-sm" />
+                                <span className="font-bold text-[11px]" style={{ color: '#1256c1' }}>AllWebTech</span>
+                            </a>
+                        </p>
+                    </div>
+                </div>
 
 
+
+            </div>
+
+            {/* Profile floating button — extreme right */}
+            <div className="fixed bottom-8 right-8 z-[100]">
+                <div className="relative">
+                    <button
+                        onClick={() => setShowProfileMenu((v) => !v)}
+                        className={`w-14 h-14 glass rounded-2xl shadow-2xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${showProfileMenu ? 'ring-1 ring-sky-500/50 text-sky-400' : 'text-white/50 hover:text-white/80'}`}
+                    >
+                        <UserCircle size={26} />
+                    </button>
+
+                    {showProfileMenu && (
+                        <>
+                            <div className="fixed inset-0 z-[-1]" onClick={() => setShowProfileMenu(false)} />
+                            <div className="absolute bottom-full right-0 mb-3 w-44 rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150"
+                                style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+                            >
+                                <div className="px-4 py-3 border-b border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Account</p>
+                                </div>
+                                <div className="p-1.5 flex flex-col gap-0.5">
+                                    <button
+                                        onClick={() => setShowProfileMenu(false)}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <UserCircle size={16} className="text-white/40 group-hover:text-sky-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Profile</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowSettings(true); setShowProfileMenu(false); }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <Settings size={16} className="text-white/40 group-hover:text-sky-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Settings</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             <StorageWarningBanner onOpenStats={() => setShowStats(true)} />
@@ -1100,6 +1133,32 @@ export const Canvas: React.FC = () => {
                             </label>
 
                             <div className="h-px bg-white/10 my-2" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Plan Board</p>
+
+                            <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-all">
+                                <div>
+                                    <div className="text-[13px] font-semibold text-white/60">Recurring repeat days</div>
+                                    <div className="text-[10px] text-white/30">How many days from start to repeat a recurring block</div>
+                                </div>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={365}
+                                    value={recurringDays}
+                                    onChange={e => {
+                                        const v = Math.max(1, Math.min(365, Number(e.target.value) || 30));
+                                        setRecurringDays(v);
+                                        try {
+                                            const s = localStorage.getItem('black-board-settings');
+                                            const prev = s ? JSON.parse(s) : {};
+                                            localStorage.setItem('black-board-settings', JSON.stringify({ ...prev, recurringDays: v }));
+                                        } catch {}
+                                    }}
+                                    className="w-16 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm font-mono font-bold text-violet-300 text-center focus:outline-none focus:border-violet-500/50 focus:bg-violet-500/10 transition-all"
+                                />
+                            </div>
+
+                            <div className="h-px bg-white/10 my-2" />
                             <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Info</p>
 
                             <button
@@ -1120,7 +1179,13 @@ export const Canvas: React.FC = () => {
             {showSearch && (
                 <SearchPanel
                     allItems={state.items}
-                    onNavigate={(path) => setNavigationPath(path)}
+                    onNavigate={(path, itemId) => {
+                        setNavigationPath(path);
+                        if (itemId) {
+                            setHighlightedItemId(itemId);
+                            setTimeout(() => setHighlightedItemId(null), 2000);
+                        }
+                    }}
                     onClose={() => setShowSearch(false)}
                 />
             )}

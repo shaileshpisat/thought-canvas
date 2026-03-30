@@ -251,8 +251,8 @@ export const QuickEntryBar: React.FC<Props> = ({
     const previewTags = extractTags(text);
 
     return (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4">
-            <div className={`flex items-start gap-2 px-4 py-2 glass rounded-2xl shadow-2xl min-w-[600px] max-w-[860px] transition-all${targetCanvas ? ' ring-1 ring-violet-500/40' : ''}`}>
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4" title="Quickly add notes using Quick Entry Bar">
+            <div className={`flex items-start gap-2 px-4 py-2 glass rounded-2xl shadow-2xl min-w-[900px] max-w-[1200px] transition-all${targetCanvas ? ' ring-1 ring-violet-500/40' : ''}`}>
                 {/* Target sub-canvas badge */}
                 {targetCanvas && (
                     <button
@@ -298,7 +298,7 @@ export const QuickEntryBar: React.FC<Props> = ({
                             const cursor = (e.target as HTMLTextAreaElement).selectionStart ?? text.length;
                             syncActiveTag(text, cursor);
                         }}
-                        placeholder={targetCanvas ? `Add to "${targetCanvas.name}"…` : 'What are you working on? Type >> to add to a sub-canvas'}
+                        placeholder={targetCanvas ? `Add to "${targetCanvas.name}"…` : 'Type >> for sub-canvas and then ^ for block. Add new text block or append to existing block from here.'}
                         className="w-full bg-transparent text-white/90 placeholder-white/25 text-sm outline-none resize-none overflow-hidden leading-relaxed"
                     />
 
