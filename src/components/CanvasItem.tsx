@@ -1352,7 +1352,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     style={{ backdropFilter: 'blur(8px)' }}
                                     title="Total time from previous days"
                                 >
-                                    <span className="text-[8px] font-sans font-medium text-white/20 mr-0.5">prev</span>
+                                    <span className="text-[8px] font-sans font-medium text-white/20 mr-0.5">efforts</span>
                                     {formatSeconds(getPastElapsed(item.timer))}
                                 </div>
                             )}

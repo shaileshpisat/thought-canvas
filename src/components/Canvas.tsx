@@ -383,6 +383,29 @@ export const Canvas: React.FC = () => {
         return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
     };
 
+    const formatTodayElapsed = (timer: { isRunning: boolean; startTime: number; totalElapsed: number; sessions?: { start: number; end?: number }[] }): string => {
+        const midnight = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+        let s = 0;
+        for (const sess of timer.sessions ?? []) {
+            if (sess.end !== undefined && sess.start >= midnight) {
+                s += Math.floor((sess.end - sess.start) / 1000);
+            }
+        }
+        if (timer.isRunning && timer.startTime >= midnight) {
+            s += Math.floor((Date.now() - timer.startTime) / 1000);
+        }
+        // Fallback: no sessions data — use total elapsed
+        if (!timer.sessions) {
+            s = timer.totalElapsed;
+            if (timer.isRunning) s += Math.floor((Date.now() - timer.startTime) / 1000);
+        }
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    };
+
     const handleQuickSave = (content: string, tags: string[], date?: string) => {
         const { x, y } = findEmptyLocation(state.inbox ?? [], 280, 140);
         addToInbox({ type: 'text', content, x, y, tags, ...(date ? { date } : {}) });
@@ -819,7 +842,7 @@ export const Canvas: React.FC = () => {
                         </div>
                         {running.map((item) => {
                             const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0].slice(0, 28) || 'Untitled';
-                            const elapsed = formatElapsed(item.timer!.totalElapsed, true, item.timer!.startTime);
+                            const elapsed = formatTodayElapsed(item.timer!);
 
                             return (
                                 <div

@@ -9,6 +9,12 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.7.3
+
+### Timer — running capsule shows today's time
+
+- The top-right running timers capsule now displays **today's elapsed time** instead of the all-time total, consistent with the timer badge on the card itself.
+
 ## v1.7.2
 
 ### Timer — daily breakdown
