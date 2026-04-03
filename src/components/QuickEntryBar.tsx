@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Hash, Play, Save, X, Layers, Calendar, Inbox } from 'lucide-react';
+import { Hash, Play, Save, X, Layers, Calendar, Inbox, IndianRupee } from 'lucide-react';
 import { getRelativeLabel } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
 import { getItemsAtPath } from '@/hooks/useCanvas';
@@ -14,7 +14,9 @@ export interface SubCanvasSuggestion {
 }
 
 const AGE_FILTER_LABELS: Record<number, string> = {
-    8: 'All',
+    10: 'All',
+    9: 'Today',
+    8: 'Yesterday',
     7: 'This week',
     6: 'Last week',
     5: 'Prev. week',
@@ -37,6 +39,7 @@ interface Props {
     hasInbox?: boolean;
     ageFilter?: number;
     onAgeFilterChange?: (value: number) => void;
+    fundsNet?: number;
 }
 
 /** Extract all #hashtag words from a string (deduped, without the #). */
@@ -67,6 +70,7 @@ export const QuickEntryBar: React.FC<Props> = ({
     hasInbox,
     ageFilter = 8,
     onAgeFilterChange,
+    fundsNet,
 }) => {
     const [text, setText] = useState('');
     const [date, setDate] = useState<string | undefined>(undefined);
@@ -270,7 +274,7 @@ export const QuickEntryBar: React.FC<Props> = ({
 
     return (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-4" title="Quickly add notes using Quick Entry Bar">
-            <div className={`flex items-start gap-2 px-4 py-2 glass rounded-2xl shadow-2xl min-w-[900px] max-w-[1200px] transition-all${targetCanvas ? ' ring-1 ring-violet-500/40' : ''}`}>
+            <div className={`flex items-center gap-2 px-4 py-1 glass rounded-2xl shadow-2xl min-w-[900px] max-w-[1200px] transition-all${targetCanvas ? ' ring-1 ring-violet-500/40' : ''}`}>
                 {/* Target sub-canvas badge */}
                 {targetCanvas && (
                     <button
@@ -324,8 +328,8 @@ export const QuickEntryBar: React.FC<Props> = ({
                             const cursor = (e.target as HTMLTextAreaElement).selectionStart ?? text.length;
                             syncActiveTag(text, cursor);
                         }}
-                        placeholder={targetCanvas ? `Add to "${targetCanvas.name}"…` : 'Type >> for sub-canvas and then ^ for block. Add new text block or append to existing block from here.'}
-                        className="w-full bg-transparent text-white/90 placeholder-white/25 text-sm outline-none resize-none overflow-hidden leading-relaxed"
+                        placeholder={targetCanvas ? `Add to "${targetCanvas.name}"…` : 'Type >> for sub-canvas and then ^ for block.'}
+                        className="w-full bg-transparent text-white/90 placeholder-white/25 text-sm outline-none resize-none overflow-hidden leading-normal py-0.5"
                     />
 
                     {/* Sub-canvas picker dropdown */}
@@ -500,22 +504,33 @@ export const QuickEntryBar: React.FC<Props> = ({
                     <>
                         <div className="w-px h-5 bg-white/10 shrink-0" />
                         <div className="flex flex-col items-center gap-0.5 shrink-0" title="Filter by age">
-                            <span className={`text-[9px] font-semibold uppercase tracking-wider transition-colors ${ageFilter === 8 ? 'text-white/25' : 'text-amber-400'}`}>
+                            <span className={`text-[9px] font-semibold uppercase tracking-wider transition-colors ${ageFilter === 10 ? 'text-white/25' : 'text-amber-400'}`}>
                                 {AGE_FILTER_LABELS[ageFilter]}
                             </span>
                             <input
                                 type="range"
                                 min={0}
-                                max={8}
+                                max={10}
                                 step={1}
                                 value={ageFilter}
                                 onChange={(e) => onAgeFilterChange(Number(e.target.value))}
                                 className="age-filter-slider w-28 h-1 cursor-pointer"
                                 style={{
-                                    accentColor: ageFilter === 8 ? 'rgba(255,255,255,0.2)' : '#fbbf24',
+                                    accentColor: ageFilter === 10 ? 'rgba(255,255,255,0.2)' : '#fbbf24',
                                 }}
                                 title={`Age filter: ${AGE_FILTER_LABELS[ageFilter]}`}
                             />
+                        </div>
+                    </>
+                )}
+
+                {/* Funds aggregate */}
+                {fundsNet !== undefined && fundsNet !== 0 && (
+                    <>
+                        <div className="w-px h-5 bg-white/10 shrink-0" />
+                        <div className={`flex items-center gap-1 text-[11px] font-bold tabular-nums shrink-0 ${fundsNet >= 0 ? 'text-emerald-400' : 'text-red-400'}`} title="Funds aggregate for this canvas">
+                            <IndianRupee size={10} />
+                            {fundsNet >= 0 ? '+' : '-'}{'₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(fundsNet))}
                         </div>
                     </>
                 )}

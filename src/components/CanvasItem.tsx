@@ -4,8 +4,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive } from 'lucide-react';
-import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry } from '@/types/canvas';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive, IndianRupee } from 'lucide-react';
+import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry, FinancialEntry, FinancialType } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
@@ -204,6 +204,23 @@ function addMinutesToTime(timeStr: string, minutes: number): string {
     return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
 }
 
+function formatRupees(amount: number): string {
+    return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(amount));
+}
+
+function financialNet(financials: FinancialEntry[]): number {
+    return financials.reduce((sum, f) => {
+        const positive = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
+        return sum + (positive ? f.amount : -f.amount);
+    }, 0);
+}
+
+function canvasFinancialNet(item: import('@/types/canvas').CanvasItem): number {
+    const own = financialNet(item.financials ?? []);
+    const childrenNet = (item.children ?? []).reduce((sum, child) => sum + canvasFinancialNet(child), 0);
+    return own + childrenNet;
+}
+
 const RECURRING_OPTIONS: { value: import('@/types/canvas').CanvasItem['recurring']; label: string; icon: string }[] = [
     { value: 'daily',    label: 'Daily',       icon: '↻' },
     { value: 'weekdays', label: 'Weekdays',     icon: '↻' },
@@ -239,9 +256,17 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [tagInput, setTagInput] = useState('');
     const [showTagSuggestions, setShowTagSuggestions] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [showFinancials, setShowFinancials] = useState(false);
+    const [isAddingFinancial, setIsAddingFinancial] = useState(false);
+    const [finAmount, setFinAmount] = useState('');
+    const [finDesc, setFinDesc] = useState('');
+    const [finType, setFinType] = useState<FinancialType>('expense');
     const [showManualLogs, setShowManualLogs] = useState(true);
     const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
     const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
+    const [isEditingCaption, setIsEditingCaption] = useState(false);
+    const captionInputRef = useRef<HTMLInputElement>(null);
+
     const blockPickerTriggerPos = useRef<number>(0); // cursor position where [[ was typed
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -596,7 +621,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 return imageSrc ? (
                     <img
                         src={imageSrc}
-                        alt="Canvas item"
+                        alt={item.caption || 'Canvas item'}
                         className={`w-full h-full rounded-sm pointer-events-none ${item.metadata?.naturalSize ? 'object-contain' : 'object-cover'}`}
                         onLoad={(e) => {
                             if (item.metadata?.naturalSize) {
@@ -897,13 +922,22 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         )}
 
                         {item.type === 'image' && (
-                            <button
-                                onClick={() => onUpdate(item.id, { metadata: { ...item.metadata, naturalSize: !item.metadata?.naturalSize } })}
-                                className={`p-1.5 transition-colors ${item.metadata?.naturalSize ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
-                                title={item.metadata?.naturalSize ? 'Natural size (on) — click to fit card' : 'Show at natural dimensions'}
-                            >
-                                <ScanSearch size={16} />
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => onUpdate(item.id, { metadata: { ...item.metadata, naturalSize: !item.metadata?.naturalSize } })}
+                                    className={`p-1.5 transition-colors ${item.metadata?.naturalSize ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                    title={item.metadata?.naturalSize ? 'Natural size (on) — click to fit card' : 'Show at natural dimensions'}
+                                >
+                                    <ScanSearch size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setIsEditingCaption(true)}
+                                    className={`p-1.5 transition-colors ${item.caption ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                    title={item.caption ? `Caption: ${item.caption} — click to edit` : 'Add caption'}
+                                >
+                                    <span className="text-[10px] font-bold leading-none">Aa</span>
+                                </button>
+                            </>
                         )}
 
                         {item.type !== 'canvas' && (<>
@@ -1160,6 +1194,17 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             <History size={16} />
                         </button>
 
+                        {/* Financials button — non-canvas blocks only */}
+                        {item.type !== 'canvas' && (
+                            <button
+                                onClick={() => setShowFinancials(!showFinancials)}
+                                className={`p-1.5 transition-colors ${showFinancials ? 'text-emerald-400 hover:text-emerald-300' : item.financials?.length ? 'text-emerald-500/70 hover:text-emerald-400' : 'text-white/40 hover:text-emerald-400'}`}
+                                title="Financials"
+                            >
+                                <IndianRupee size={15} />
+                            </button>
+                        )}
+
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {onArchive && (
@@ -1198,12 +1243,143 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     </div>
                 )}
 
-                <div className="w-full h-full overflow-hidden rounded-xl">
-                    {renderContent()}
+                <div className={`w-full h-full overflow-hidden rounded-xl ${item.type === 'image' ? 'flex flex-col' : ''}`}>
+                    <div className={item.type === 'image' ? 'flex-1 min-h-0 overflow-hidden' : 'w-full h-full'}>
+                        {renderContent()}
+                    </div>
+                    {item.type === 'image' && (!!item.tags?.length || isHovered || isAddingTag) && (
+                        <div
+                            className="shrink-0 flex flex-wrap items-center gap-1 px-2.5 py-1.5 border-t border-white/8"
+                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                        >
+                            {(item.tags ?? []).map((tag) => (
+                                <span
+                                    key={tag}
+                                    className="group/tag inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-sky-500/15 text-sky-400/80 border border-sky-500/20 shrink-0 leading-none"
+                                >
+                                    #{tag}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onUpdateTags?.(item.id, (item.tags ?? []).filter((t) => t !== tag));
+                                        }}
+                                        className="opacity-0 group-hover/tag:opacity-100 transition-opacity ml-0.5 hover:text-red-400"
+                                        title="Remove tag"
+                                    >
+                                        <X size={8} />
+                                    </button>
+                                </span>
+                            ))}
+                            {isAddingTag ? (
+                                <div className="relative flex items-center">
+                                    <Hash size={9} className="absolute left-1.5 text-sky-400/60 pointer-events-none" />
+                                    <input
+                                        ref={tagInputRef}
+                                        type="text"
+                                        value={tagInput}
+                                        onChange={(e) => { setTagInput(e.target.value); setShowTagSuggestions(true); }}
+                                        onKeyDown={(e) => {
+                                            if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
+                                                e.preventDefault();
+                                                const t = tagInput.trim().replace(/^#/, '');
+                                                if (t && !(item.tags ?? []).includes(t)) {
+                                                    onUpdateTags?.(item.id, [...(item.tags ?? []), t]);
+                                                }
+                                                setTagInput('');
+                                                setShowTagSuggestions(false);
+                                            } else if (e.key === 'Escape') {
+                                                setIsAddingTag(false);
+                                                setTagInput('');
+                                                setShowTagSuggestions(false);
+                                            }
+                                        }}
+                                        onBlur={() => setTimeout(() => { setIsAddingTag(false); setTagInput(''); setShowTagSuggestions(false); }, 150)}
+                                        placeholder="tag…"
+                                        className="pl-4 pr-1.5 py-0.5 w-20 text-[9px] bg-sky-500/10 border border-sky-500/30 rounded-full text-sky-300 placeholder-sky-400/40 focus:outline-none focus:border-sky-400/60"
+                                    />
+                                    {showTagSuggestions && tagInput.length >= 1 && (() => {
+                                        const sugg = tagMaster.filter(
+                                            (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !(item.tags ?? []).includes(t)
+                                        ).slice(0, 6);
+                                        if (!sugg.length) return null;
+                                        return (
+                                            <ul className="absolute top-full left-0 mt-1 z-50 rounded-xl overflow-hidden shadow-xl border border-white/10 min-w-[120px]"
+                                                style={{ background: 'rgba(8,14,26,0.97)', backdropFilter: 'blur(20px)' }}>
+                                                {sugg.map((s) => (
+                                                    <li key={s}>
+                                                        <button
+                                                            type="button"
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                if (!(item.tags ?? []).includes(s)) {
+                                                                    onUpdateTags?.(item.id, [...(item.tags ?? []), s]);
+                                                                }
+                                                                setTagInput('');
+                                                                setShowTagSuggestions(false);
+                                                                setTimeout(() => tagInputRef.current?.focus(), 0);
+                                                            }}
+                                                            className="flex items-center gap-1.5 w-full px-3 py-1.5 text-[11px] text-white/60 hover:text-sky-400 hover:bg-white/5 transition-colors"
+                                                        >
+                                                            <Hash size={10} className="text-white/30 shrink-0" />
+                                                            {s}
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        );
+                                    })()}
+                                </div>
+                            ) : (
+                                isHovered && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsAddingTag(true); setTimeout(() => tagInputRef.current?.focus(), 50); }}
+                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-white/5 text-white/30 border border-white/10 hover:bg-sky-500/15 hover:text-sky-400 hover:border-sky-500/25 transition-colors shrink-0 leading-none"
+                                        title="Add tag"
+                                    >
+                                        <Plus size={8} />
+                                        tag
+                                    </button>
+                                )
+                            )}
+                        </div>
+                    )}
+                    {item.type === 'image' && (isEditingCaption ? (
+                        <input
+                            ref={captionInputRef}
+                            autoFocus
+                            defaultValue={item.caption || ''}
+                            placeholder="Add a caption…"
+                            className="shrink-0 w-full bg-black/60 border-t border-white/10 px-2 py-1 text-xs text-white/70 placeholder-white/25 outline-none"
+                            onBlur={(e) => {
+                                const val = e.target.value.trim();
+                                onUpdate(item.id, { caption: val || undefined });
+                                setIsEditingCaption(false);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === 'Escape') {
+                                    const val = (e.target as HTMLInputElement).value.trim();
+                                    onUpdate(item.id, { caption: val || undefined });
+                                    setIsEditingCaption(false);
+                                }
+                                e.stopPropagation();
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : item.caption ? (
+                        <div
+                            className="shrink-0 w-full bg-black/40 border-t border-white/10 px-2 py-1 text-xs text-white/50 text-center truncate cursor-text"
+                            onDoubleClick={(e) => { e.stopPropagation(); setIsEditingCaption(true); }}
+                            title="Double-click to edit caption"
+                        >
+                            {item.caption}
+                        </div>
+                    ) : null)}
                 </div>
 
-                {/* Tags strip — visible when tags exist or card is hovered */}
-                {(!!item.tags?.length || isHovered || isAddingTag) && (
+
+                {/* Tags strip — visible when tags exist or card is hovered (not image — handled inline) */}
+                {item.type !== 'image' && (!!item.tags?.length || isHovered || isAddingTag) && (
                     <div
                         className="absolute left-0 right-0 z-20 flex flex-wrap items-center gap-1 px-2.5 py-1.5 rounded-b-xl"
                         style={{ bottom: item.type === 'canvas' ? 40 : 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
@@ -1319,76 +1495,97 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
             </div>
 
             {/* History & Timer section — floats below the card */}
-            {(showHistory || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0))) && (
+            {(showHistory || showFinancials || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0))) && (
                 <div
                     className="group/timer absolute left-2 right-2 z-30 flex flex-col gap-1"
                     style={{ top: currentHeight + 6 }}
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    {/* Row 1: badge + controls */}
-                    {item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0) && (
+                    {/* Row 1: timer badges + financial aggregate */}
+                    {((item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0)) && (
                         <div className="flex items-center gap-1">
-                            {/* Today elapsed badge (or total if no sessions data) */}
-                            <div
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-bold tabular-nums ${
-                                    item.timer.isRunning
-                                        ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30'
-                                        : 'bg-black/40 text-white/40 ring-1 ring-white/10'
-                                }`}
-                                style={{ backdropFilter: 'blur(8px)' }}
-                            >
-                                {item.timer.isRunning && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                                )}
-                                {item.timer.sessions
-                                    ? formatSeconds(getTodayElapsed(item.timer))
-                                    : formatTimerElapsed(item.timer)
-                                }
-                            </div>
-                            {/* Past days total — shown only when sessions exist and there's past time */}
-                            {item.timer.sessions && getPastElapsed(item.timer) > 0 && (
+                            {item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0) && (<>
+                                {/* Today elapsed badge */}
                                 <div
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono tabular-nums bg-black/30 text-white/25 ring-1 ring-white/8"
+                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-bold tabular-nums ${
+                                        item.timer.isRunning
+                                            ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30'
+                                            : 'bg-black/40 text-white/40 ring-1 ring-white/10'
+                                    }`}
                                     style={{ backdropFilter: 'blur(8px)' }}
-                                    title="Total time from previous days"
                                 >
-                                    <span className="text-[8px] font-sans font-medium text-white/20 mr-0.5">efforts</span>
-                                    {formatSeconds(getPastElapsed(item.timer))}
+                                    {item.timer.isRunning && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                    )}
+                                    {item.timer.sessions
+                                        ? formatSeconds(getTodayElapsed(item.timer))
+                                        : formatTimerElapsed(item.timer)
+                                    }
                                 </div>
-                            )}
+                                {/* Past days total */}
+                                {item.timer.sessions && getPastElapsed(item.timer) > 0 && (
+                                    <div
+                                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono tabular-nums bg-black/30 text-white/25 ring-1 ring-white/8"
+                                        style={{ backdropFilter: 'blur(8px)' }}
+                                        title="Total time from previous days"
+                                    >
+                                        <span className="text-[8px] font-sans font-medium text-white/20 mr-0.5">efforts</span>
+                                        {formatSeconds(getPastElapsed(item.timer))}
+                                    </div>
+                                )}
+                                {/* Controls + Log button — fade in on hover */}
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover/timer:opacity-100 transition-opacity duration-150">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onToggleTimer?.(item.id); }}
+                                        className="p-1 rounded-lg bg-black/40 ring-1 ring-white/10 hover:bg-white/15 transition-colors"
+                                        style={{ backdropFilter: 'blur(8px)' }}
+                                        title={item.timer.isRunning ? 'Pause' : 'Resume'}
+                                    >
+                                        {item.timer.isRunning
+                                            ? <Pause size={10} className="text-emerald-400" />
+                                            : <Play size={10} className="text-white/50" />
+                                        }
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onStopTimer?.(item.id); }}
+                                        className="p-1 rounded-lg bg-black/40 ring-1 ring-white/10 hover:bg-red-500/20 transition-colors"
+                                        style={{ backdropFilter: 'blur(8px)' }}
+                                        title="Stop"
+                                    >
+                                        <Square size={10} className="text-white/30 hover:text-red-400" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsLogging((v) => !v); setTimeout(() => logInputRef.current?.focus(), 50); }}
+                                        className={`p-1 rounded-lg ring-1 transition-colors ${isLogging ? 'bg-sky-500/20 ring-sky-500/30 text-sky-400' : 'bg-black/40 ring-white/10 hover:bg-sky-500/15 text-white/40 hover:text-sky-400'}`}
+                                        style={{ backdropFilter: 'blur(8px)' }}
+                                        title="Log action"
+                                    >
+                                        <ListPlus size={10} />
+                                    </button>
+                                </div>
+                            </>)}
 
-                        {/* Controls + Log button — fade in on hover */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover/timer:opacity-100 transition-opacity duration-150">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onToggleTimer?.(item.id); }}
-                                className="p-1 rounded-lg bg-black/40 ring-1 ring-white/10 hover:bg-white/15 transition-colors"
-                                style={{ backdropFilter: 'blur(8px)' }}
-                                title={item.timer.isRunning ? 'Pause' : 'Resume'}
-                            >
-                                {item.timer.isRunning
-                                    ? <Pause size={10} className="text-emerald-400" />
-                                    : <Play size={10} className="text-white/50" />
-                                }
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onStopTimer?.(item.id); }}
-                                className="p-1 rounded-lg bg-black/40 ring-1 ring-white/10 hover:bg-red-500/20 transition-colors"
-                                style={{ backdropFilter: 'blur(8px)' }}
-                                title="Stop"
-                            >
-                                <Square size={10} className="text-white/30 hover:text-red-400" />
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setIsLogging((v) => !v); setTimeout(() => logInputRef.current?.focus(), 50); }}
-                                className={`p-1 rounded-lg ring-1 transition-colors ${isLogging ? 'bg-sky-500/20 ring-sky-500/30 text-sky-400' : 'bg-black/40 ring-white/10 hover:bg-sky-500/15 text-white/40 hover:text-sky-400'}`}
-                                style={{ backdropFilter: 'blur(8px)' }}
-                                title="Log action"
-                            >
-                                <ListPlus size={10} />
-                            </button>
+                            {/* Financial aggregate badge — right side */}
+                            {(() => {
+                                const net = item.type === 'canvas' ? canvasFinancialNet(item) : financialNet(item.financials ?? []);
+                                if (net === 0) return null;
+                                const isPositive = net >= 0;
+                                return (
+                                    <div
+                                        className={`ml-auto px-2 py-1 rounded-lg text-[10px] font-bold tabular-nums tracking-wide pointer-events-none select-none ${
+                                            isPositive
+                                                ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25'
+                                                : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25'
+                                        }`}
+                                        style={{ backdropFilter: 'blur(8px)' }}
+                                    >
+                                        {isPositive ? '+' : '-'}{formatRupees(net)}
+                                    </div>
+                                );
+                            })()}
                         </div>
-                    </div>
                     )}
+
                     {/* Inline log input */}
                     {isLogging && (
                         <form
@@ -1423,40 +1620,169 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     )}
 
                     {/* Action log list */}
-                    {(item.actions?.length ?? 0) > 0 && (
-                        <div
-                            className="flex flex-col gap-0.5 px-1 pb-1"
-                            style={{ backdropFilter: 'blur(8px)' }}
-                        >
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setShowManualLogs((v) => !v); }}
-                                className="flex items-center gap-1 px-1 py-1 w-full text-left hover:bg-white/5 rounded transition-colors"
+                    {(item.actions?.length ?? 0) > 0 && (() => {
+                        const todayStr = new Date().toDateString();
+                        const grouped = new Map<string, CanvasAction[]>();
+                        for (const a of item.actions!) {
+                            const key = new Date(a.timestamp).toDateString();
+                            if (!grouped.has(key)) grouped.set(key, []);
+                            grouped.get(key)!.push(a);
+                        }
+                        // Descending by date
+                        const sortedDates = Array.from(grouped.keys()).sort(
+                            (a, b) => new Date(b).getTime() - new Date(a).getTime()
+                        );
+                        return (
+                            <div
+                                className="flex flex-col gap-0.5 px-1 pb-1"
+                                style={{ backdropFilter: 'blur(8px)' }}
                             >
-                                <span className="text-[8px] font-bold uppercase tracking-wider text-white/20">Manual Logs</span>
-                                <span className="text-[8px] text-white/15 ml-0.5">({item.actions!.length})</span>
-                                <ChevronDown size={8} className={`ml-auto text-white/20 transition-transform ${showManualLogs ? '' : '-rotate-90'}`} />
-                            </button>
-                            {showManualLogs && item.actions!.map((action: CanvasAction) => (
-                                <div
-                                    key={action.id}
-                                    className="group/action flex items-center gap-1.5 py-0.5"
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setShowManualLogs((v) => !v); }}
+                                    className="flex items-center gap-1 px-1 py-1 w-full text-left hover:bg-white/5 rounded transition-colors"
                                 >
-                                    <Clock size={9} className="text-white/20 shrink-0" />
-                                    <span className="flex-1 text-[10px] text-white/55 truncate leading-none">{action.label}</span>
-                                    <span className="font-mono text-[9px] text-white/25 shrink-0">{formatDuration(action.duration)}</span>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); onDeleteAction?.(item.id, action.id); }}
-                                        className="opacity-0 group-hover/action:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all"
-                                        title="Remove"
-                                    >
-                                        <X size={9} className="text-white/30 hover:text-red-400" />
-                                    </button>
-                                </div>
-                            ))}
+                                    <span className="text-[8px] font-bold uppercase tracking-wider text-white/20">Manual Logs</span>
+                                    <span className="text-[8px] text-white/15 ml-0.5">({item.actions!.length})</span>
+                                    <ChevronDown size={8} className={`ml-auto text-white/20 transition-transform ${showManualLogs ? '' : '-rotate-90'}`} />
+                                </button>
+                                {showManualLogs && sortedDates.map((dateStr) => (
+                                    <div key={dateStr} className="flex flex-col gap-0.5">
+                                        <div className="px-1 pt-1 pb-0.5 text-[8px] font-semibold text-white/20 tracking-wide">
+                                            {dateStr === todayStr ? 'Today' : new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </div>
+                                        {grouped.get(dateStr)!.map((action: CanvasAction) => (
+                                            <div
+                                                key={action.id}
+                                                className="group/action flex items-center gap-1.5 py-0.5 pl-1"
+                                            >
+                                                <Clock size={9} className="text-white/20 shrink-0" />
+                                                <span className="flex-1 text-[10px] text-white/55 truncate leading-none">{action.label}</span>
+                                                <span className="font-mono text-[9px] text-white/25 shrink-0">{formatDuration(action.duration)}</span>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onDeleteAction?.(item.id, action.id); }}
+                                                    className="opacity-0 group-hover/action:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all"
+                                                    title="Remove"
+                                                >
+                                                    <X size={9} className="text-white/30 hover:text-red-400" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })()}
+
+                    {/* History audit log list */}
+                    {/* Financials panel */}
+                    {showFinancials && (
+                        <div className="flex flex-col gap-1 px-1 py-1.5 border-t border-white/5 mt-1" style={{ backdropFilter: 'blur(8px)' }} onMouseDown={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between px-1 mb-1">
+                                <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-400/60">Financials</span>
+                                {(item.financials?.length ?? 0) > 0 && (() => {
+                                    const net = financialNet(item.financials!);
+                                    return (
+                                        <span className={`text-[9px] font-bold tabular-nums ${net >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}`}>
+                                            {net >= 0 ? '+' : '-'}{formatRupees(net)}
+                                        </span>
+                                    );
+                                })()}
+                                <button onClick={() => setShowFinancials(false)} className="p-0.5 text-white/20 hover:text-white ml-auto">
+                                    <X size={8} />
+                                </button>
+                            </div>
+
+                            {/* Existing entries */}
+                            {(item.financials ?? []).map((entry) => {
+                                const isPos = entry.type === 'income' || entry.type === 'inflow' || entry.type === 'redemption';
+                                return (
+                                    <div key={entry.id} className="flex items-center gap-1.5 py-0.5 pl-1 group/fin">
+                                        <span className={`text-[9px] font-bold tabular-nums shrink-0 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {isPos ? '+' : '-'}{formatRupees(entry.amount)}
+                                        </span>
+                                        <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 text-white/30 uppercase tracking-wide shrink-0">{entry.type}</span>
+                                        {entry.description && <span className="text-[9px] text-white/45 truncate flex-1">{entry.description}</span>}
+                                        <button
+                                            onClick={e => { e.stopPropagation(); onUpdate(item.id, { financials: (item.financials ?? []).filter(f => f.id !== entry.id) }); }}
+                                            className="opacity-0 group-hover/fin:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all ml-auto"
+                                            title="Remove"
+                                        >
+                                            <X size={9} className="text-white/30 hover:text-red-400" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Add entry form */}
+                            {isAddingFinancial ? (
+                                <form
+                                    onSubmit={e => {
+                                        e.preventDefault();
+                                        const amt = parseFloat(finAmount);
+                                        if (!isNaN(amt) && amt > 0) {
+                                            const entry: FinancialEntry = { id: Date.now().toString(), amount: amt, description: finDesc.trim() || undefined, type: finType, timestamp: Date.now() };
+                                            onUpdate(item.id, { financials: [...(item.financials ?? []), entry] });
+                                            setFinAmount('');
+                                            setFinDesc('');
+                                            setFinType('expense');
+                                            setIsAddingFinancial(false);
+                                        }
+                                    }}
+                                    className="flex flex-col gap-1 mt-1"
+                                    onMouseDown={e => e.stopPropagation()}
+                                >
+                                    <div className="flex gap-1">
+                                        <input
+                                            type="number"
+                                            value={finAmount}
+                                            onChange={e => setFinAmount(e.target.value)}
+                                            placeholder="Amount"
+                                            min="0"
+                                            step="0.01"
+                                            autoFocus
+                                            className="flex-1 text-[11px] px-2 py-1 rounded-lg bg-black/50 ring-1 ring-white/15 text-white/80 placeholder-white/25 focus:outline-none focus:ring-emerald-500/40 w-0"
+                                            style={{ backdropFilter: 'blur(8px)' }}
+                                            onKeyDown={e => { if (e.key === 'Escape') { setIsAddingFinancial(false); setFinAmount(''); setFinDesc(''); } }}
+                                        />
+                                        <select
+                                            value={finType}
+                                            onChange={e => setFinType(e.target.value as FinancialType)}
+                                            className="text-[10px] px-1.5 py-1 rounded-lg bg-black/50 ring-1 ring-white/15 text-white/60 focus:outline-none focus:ring-emerald-500/40 shrink-0"
+                                            style={{ backdropFilter: 'blur(8px)' }}
+                                        >
+                                            <option value="expense">Expense</option>
+                                            <option value="income">Income</option>
+                                            <option value="investment">Investment</option>
+                                            <option value="redemption">Redemption</option>
+                                            <option value="inflow">Inflow</option>
+                                            <option value="outflow">Outflow</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <input
+                                            type="text"
+                                            value={finDesc}
+                                            onChange={e => setFinDesc(e.target.value)}
+                                            placeholder="Description (optional)"
+                                            className="flex-1 text-[11px] px-2 py-1 rounded-lg bg-black/50 ring-1 ring-white/15 text-white/80 placeholder-white/25 focus:outline-none focus:ring-emerald-500/40"
+                                            style={{ backdropFilter: 'blur(8px)' }}
+                                            onKeyDown={e => { if (e.key === 'Escape') { setIsAddingFinancial(false); setFinAmount(''); setFinDesc(''); } }}
+                                        />
+                                        <button type="submit" className="px-2 py-1 text-[10px] font-bold rounded-lg bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-500/30 transition-colors shrink-0">Add</button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <button
+                                    onClick={e => { e.stopPropagation(); setIsAddingFinancial(true); }}
+                                    className="flex items-center gap-1 px-2 py-1 text-[9px] text-white/30 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors mt-0.5"
+                                >
+                                    <Plus size={9} />
+                                    Add financial entry
+                                </button>
+                            )}
                         </div>
                     )}
 
-                    {/* History audit log list */}
                     {showHistory && (() => {
                         const historyEntries = [...(item.history ?? [])].reverse();
                         const groupedByMonth = historyEntries.reduce((acc: Record<string, CanvasHistoryEntry[]>, entry) => {

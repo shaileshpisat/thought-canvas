@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ArrowLeft, ClipboardList, Clock, Tag, Flag, X } from 'lucide-react';
-import { CanvasItem, CanvasHistoryEntry } from '@/types/canvas';
+import { CanvasItem, CanvasHistoryEntry, FinancialEntry } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
@@ -14,6 +14,17 @@ interface Props {
 interface PlanItemData {
   item: CanvasItem;
   path: string[];
+}
+
+function financialNet(financials: FinancialEntry[]): number {
+    return financials.reduce((sum, f) => {
+        const positive = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
+        return sum + (positive ? f.amount : -f.amount);
+    }, 0);
+}
+
+function formatRupees(amount: number): string {
+    return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(amount));
 }
 
 export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNavigateToItem }) => {
@@ -264,6 +275,16 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                 {dayTotal > 0 && (
                   <span className="text-[10px] font-bold text-violet-300/50 tabular-nums">{formatDuration(dayTotal)}</span>
                 )}
+                {(() => {
+                  const dayFinancials = (byDate[dateStr] ?? []).flatMap(({ item }) => item.financials ?? []);
+                  if (dayFinancials.length === 0) return null;
+                  const net = financialNet(dayFinancials);
+                  return (
+                    <span className={`text-[9px] font-bold tabular-nums tracking-tight ${net >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                      Funds: {net >= 0 ? '' : '-'}{formatRupees(net)}
+                    </span>
+                  );
+                })()}
               </div>
             );
           })}

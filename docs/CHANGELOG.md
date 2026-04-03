@@ -9,6 +9,48 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.8.1
+
+### Image Caption
+
+- Image blocks now support an optional caption displayed below the image.
+- Click the **Aa** button in the image toolbar to add or edit a caption.
+- Double-click the caption text directly to edit it inline.
+- Clearing the caption removes it entirely.
+
+---
+
+## v1.8.0
+
+### Financials on Blocks
+
+- Add financial entries to any block via the new ₹ toolbar button.
+- Each entry has an amount, optional description, and type: income, expense, investment, redemption, inflow, or outflow (expense is the default).
+- The block displays a ₹ net aggregate badge (green for positive, red for negative).
+- Week Board and Plan Board day headers now show **Funds: ₹X** below the date, aggregating all financial entries from items scheduled on that day.
+
+## v1.7.6
+
+### Week Board — Manual Log capsule labels
+
+- Manual log capsules now display the first 15 characters of the block title as a text label instead of a plain dot.
+- Markdown formatting (headings `#`, bold/italic `*_`, inline code, links) is stripped before truncating.
+
+## v1.7.5
+
+### Week Board — Manual Log capsules
+
+- Manual log entries now appear on the Week Board as **sky-blue square capsules** in the time slot matching the entry's timestamp.
+- Hover (or click to pin) a capsule to see a popup with the block title, canvas path, entry count, total duration, and each log entry with its time and label.
+- "Show on Canvas" button navigates directly to the block.
+
+## v1.7.4
+
+### Manual Logs — date grouping
+
+- Log entries are now grouped by date in descending order (newest date first).
+- Each group shows a date header — "Today" for today's entries, or a formatted date (e.g. "Apr 2, 2026") for older ones.
+
 ## v1.7.3
 
 ### Timer — running capsule shows today's time

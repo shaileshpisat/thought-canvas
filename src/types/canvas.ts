@@ -24,6 +24,16 @@ export interface CanvasHistoryEntry {
   snapshot?: string; // Optonal snapshot of text for content changes
 }
 
+export type FinancialType = 'income' | 'expense' | 'investment' | 'redemption' | 'inflow' | 'outflow';
+
+export interface FinancialEntry {
+  id: string;
+  amount: number;
+  description?: string;
+  type: FinancialType;
+  timestamp: number;
+}
+
 export interface CanvasItem {
   id: string;
   createdAt?: number;   // unix ms timestamp — set once on creation
@@ -43,7 +53,9 @@ export interface CanvasItem {
   timer?: CanvasTimer;
   actions?: CanvasAction[];
   history?: CanvasHistoryEntry[];
+  financials?: FinancialEntry[];
   children?: CanvasItem[]; // only for type 'canvas'
+  caption?: string;
   metadata?: {
     title?: string;
     description?: string;

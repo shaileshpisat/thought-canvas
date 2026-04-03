@@ -38,6 +38,7 @@ import { CalendarBoard } from './CalendarBoard';
 import { PlanBoard } from './PlanBoard';
 import { QuickEntryBar, SubCanvasSuggestion } from './QuickEntryBar';
 import { getAllSubCanvases } from '@/utils/searchUtils';
+import { CHANGELOG } from '@/data/changelog';
 
 
 import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
@@ -48,6 +49,15 @@ import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { useImageStorageTracker } from '@/hooks/useImageStorageTracker';
 import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
 import type { CanvasItem as ICanvasItem } from '@/types/canvas';
+
+function canvasTotalNet(items: CanvasItem[]): number {
+    return flattenItems(items).reduce((sum, item) => {
+        return sum + (item.financials ?? []).reduce((s, f) => {
+            const pos = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
+            return s + (pos ? f.amount : -f.amount);
+        }, 0);
+    }, 0);
+}
 
 const getBreadcrumbLabels = (items: CanvasItem[], path: string[]): string[] => {
     const labels: string[] = [];
@@ -116,7 +126,7 @@ export const Canvas: React.FC = () => {
         }
         try { return JSON.parse(tags || '[]'); } catch { return []; }
     });
-    const [ageFilter, setAgeFilter] = useState(8); // 8 = All, 0 = Older
+    const [ageFilter, setAgeFilter] = useState(10); // 10 = All, 0 = Older
     const [clockTick, setClockTick] = useState(0);
     const [alertingIds, setAlertingIds] = useState<Set<string>>(new Set());
     const lastAlertRef = useRef<number>(0);
@@ -209,8 +219,10 @@ export const Canvas: React.FC = () => {
     const rawCurrentItems = getItemsAtPath(state.items, navigationPath);
 
     const ageFilteredItems = React.useMemo(() => {
-        if (ageFilter === 8) return rawCurrentItems;
+        if (ageFilter === 10) return rawCurrentItems;
         const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).getTime();
+        const yesterdayStart = todayStart - 86400000;
         const dow = today.getDay(); // 0=Sun
         const daysToMon = dow === 0 ? 6 : dow - 1;
         const thisWeekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysToMon, 0, 0, 0, 0).getTime();
@@ -224,6 +236,8 @@ export const Canvas: React.FC = () => {
         return rawCurrentItems.filter((item) => {
             const created = item.modifiedAt ?? item.createdAt ?? now;
             switch (ageFilter) {
+                case 9: return created >= todayStart;
+                case 8: return created >= yesterdayStart && created < todayStart;
                 case 7: return created >= thisWeekStart;
                 case 6: return created >= lastWeekStart && created < thisWeekStart;
                 case 5: return created >= prevWeekStart && created < lastWeekStart;
@@ -825,6 +839,7 @@ export const Canvas: React.FC = () => {
                     hasInbox={true}
                     ageFilter={ageFilter}
                     onAgeFilterChange={setAgeFilter}
+                    fundsNet={canvasTotalNet(getItemsAtPath(state.items, navigationPath))}
                 />
             )}
 
@@ -1348,7 +1363,7 @@ export const Canvas: React.FC = () => {
                             <button
                                 onClick={() => setShowChangelog(true)}
                                 className="text-[10px] font-mono text-white/25 tracking-wider hover:text-sky-400/70 transition-colors cursor-pointer"
-                            >v1.4.3</button>
+                            >{CHANGELOG[0].version}</button>
                         </div>
                         <p className="text-xs text-white/30 font-medium tracking-wide uppercase">The Spatial Thinking Board</p>
                         <p className="text-[10px] text-white/20 tracking-wide flex items-center gap-1">
@@ -1541,25 +1556,24 @@ export const Canvas: React.FC = () => {
                             >✕</button>
                         </div>
                         <div className="overflow-y-auto px-5 py-4 space-y-5 text-sm">
-                            {[
-                                { version: 'v1.4.3', changes: ['Added Organize button — arranges all blocks in a clean grid that fits the visible screen, shrinking oversized items only when needed.', 'Undo button appears after organizing, letting you restore the previous layout instantly.', 'Added version changelog popup — click the version number to see what\'s new.'] },
-                                { version: 'v1.4.1', changes: ['Added date filter panel to browse and filter canvas items by date.', 'Search panel improvements for faster discovery of notes and links.'] },
-                                { version: 'v1.4.0', changes: ['Introduced folder/path-based organization for canvas items.', 'Added breadcrumb navigation to move between folders.'] },
-                                { version: 'v1.3.0', changes: ['Added settings panel with canvas customization options.', 'Export and import canvas data as JSON for backup and transfer.'] },
-                                { version: 'v1.2.0', changes: ['Link cards now show rich previews with title, description, and image from the linked page.', 'Paste a URL directly onto the canvas to create a link card instantly.'] },
-                                { version: 'v1.1.0', changes: ['Images can now be added by pasting from clipboard or uploading a file.', 'Canvas background color can be customized.'] },
-                                { version: 'v1.0.0', changes: ['Initial release: freeform canvas for text notes, images, and links.', 'Drag cards freely around the canvas and double-click to create new notes.', 'All data saved locally in your browser — no account needed.'] },
-                            ].map(({ version, changes }) => (
+                            {CHANGELOG.map(({ version, sections }) => (
                                 <div key={version}>
                                     <div className="text-[11px] font-mono text-sky-400/70 font-semibold mb-1.5 tracking-wider">{version}</div>
-                                    <ul className="space-y-1">
-                                        {changes.map((c, i) => (
-                                            <li key={i} className="text-[13px] text-white/50 flex gap-2">
-                                                <span className="text-white/20 shrink-0">•</span>
-                                                <span>{c}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    {sections.map((section, si) => (
+                                        <div key={si} className={si > 0 ? 'mt-2' : ''}>
+                                            {section.heading && (
+                                                <div className="text-[11px] text-white/30 font-semibold mb-1">{section.heading}</div>
+                                            )}
+                                            <ul className="space-y-1">
+                                                {section.changes.map((c, i) => (
+                                                    <li key={i} className="text-[13px] text-white/50 flex gap-2">
+                                                        <span className="text-white/20 shrink-0">•</span>
+                                                        <span>{c}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
                                 </div>
                             ))}
                         </div>

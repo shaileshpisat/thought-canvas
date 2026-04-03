@@ -63,19 +63,18 @@ Tailwind v4 with a custom theme in [src/app/globals.css](src/app/globals.css):
 
 [src/utils/canvasUtils.ts](src/utils/canvasUtils.ts) — `findEmptyLocation` scans existing items with a 40px padding collision check, stepping right then down, to place new items without overlap.
 
-## Versioning — MANDATORY
+## Versioning — MANDATORY, DO NOT SKIP
 
-**After every session where features are added or bugs are fixed, you MUST update both files before finishing:**
+After EVERY conversation where any code changed, you MUST update versioning before the conversation ends — without being asked. Do not wait for the user to prompt this.
 
-1. `docs/CHANGELOG.md` — add a new entry at the top (below the format legend). Group changes under a `###` heading. Current version: **1.7.0**
-2. `package.json` — bump the version to match using:
-   ```bash
-   sed -i 's/"version": "OLD"/"version": "NEW"/' package.json
-   ```
+Update all three files together:
+1. `docs/CHANGELOG.md` — new entry at the top with all user-facing changes grouped under `###` headings
+2. `package.json` — bump version: `sed -i 's/"version": "OLD"/"version": "NEW"/' package.json`
+3. `src/data/changelog.ts` — add matching entry at the top of the `CHANGELOG` array so the in-app popup stays in sync
 
 Version bump rules:
-- **MINOR** (x.**Y**.0) — new features or significant UI changes
 - **PATCH** (x.x.**Z**) — bug fixes, small tweaks, style-only changes
-- **MAJOR** (**X**.0.0) — breaking changes or complete redesigns
+- **MINOR** (x.**Y**.0) — new features or significant UI/UX changes
+- **MAJOR** (**X**.0.0) — breaking changes, complete redesigns, or data migrations
 
-This is not optional. Do not wait for the user to ask.
+Current version: **1.7.6**

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ArrowLeft, Calendar as CalendarIcon, Clock, Tag, Flag, Layers, X } from 'lucide-react';
-import { CanvasItem, CanvasHistoryEntry } from '@/types/canvas';
+import { ChevronLeft, ChevronRight, ArrowLeft, Calendar as CalendarIcon, Clock, Tag, Flag, Layers, X, ListChecks } from 'lucide-react';
+import { CanvasItem, CanvasHistoryEntry, CanvasAction, FinancialEntry } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
@@ -18,9 +18,21 @@ interface CalendarItemData {
 interface CalendarData {
   blocksWithDate: Record<string, CalendarItemData[]>; // day -> item+path
   blocksWithHistory: Record<string, Map<string, { item: CalendarItemData; entries: CanvasHistoryEntry[] }>>; // day -> itemID -> {item, entries}
+  actionsOnDay: Record<string, Map<string, { item: CalendarItemData; actions: CanvasAction[] }>>; // day -> itemID -> {item, actions}
   tagsOnDay: Record<string, Map<string, Set<string>>>; // day -> tag -> set of unique item IDs
   canvasTitles: Map<string, string>; // id -> name for canvases
   canvasesOnDay: Record<string, Set<string>>; // day -> set of active canvas IDs
+}
+
+function financialNet(financials: FinancialEntry[]): number {
+    return financials.reduce((sum, f) => {
+        const positive = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
+        return sum + (positive ? f.amount : -f.amount);
+    }, 0);
+}
+
+function formatRupees(amount: number): string {
+    return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(amount));
 }
 
 export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem }) => {
@@ -35,7 +47,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
   const [fullHistoryModal, setFullHistoryModal] = useState<{ item: CalendarItemData; entries: CanvasHistoryEntry[]; dateStr: string } | null>(null);
 
   const calendarData = useMemo(() => {
-    const data: CalendarData = { blocksWithDate: {}, blocksWithHistory: {}, tagsOnDay: {}, canvasTitles: new Map(), canvasesOnDay: {} };
+    const data: CalendarData = { blocksWithDate: {}, blocksWithHistory: {}, actionsOnDay: {}, tagsOnDay: {}, canvasTitles: new Map(), canvasesOnDay: {} };
 
     const formatDate = (d: Date) => {
       const year = d.getFullYear();
@@ -91,6 +103,17 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
           }
         }
 
+        if (item.actions) {
+          for (const action of item.actions) {
+            const actionDate = formatDate(new Date(action.timestamp));
+            if (!data.actionsOnDay[actionDate]) data.actionsOnDay[actionDate] = new Map();
+            if (!data.actionsOnDay[actionDate].has(item.id)) {
+              data.actionsOnDay[actionDate].set(item.id, { item: itemWithData, actions: [] });
+            }
+            data.actionsOnDay[actionDate].get(item.id)!.actions.push(action);
+          }
+        }
+
         if (item.children) traverse(item.children, [...path, item.id]);
       }
     };
@@ -120,6 +143,11 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
 
   const pad = (n: number) => String(n).padStart(2, '0');
   const getDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fmtDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+    if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+    return `${pad(m)}:${pad(s)}`;
+  };
 
   return (
     <div className="fixed inset-0 z-[500] bg-canvas-bg flex flex-col animate-in fade-in duration-300">
@@ -222,6 +250,16 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                     <span className={`text-2xl font-display font-bold w-9 h-9 flex items-center justify-center rounded-full leading-none transition-all ${isToday ? 'bg-sky-500 text-white shadow-[0_0_20px_rgba(56,189,248,0.35)]' : 'text-white/60'}`}>
                       {day.getDate()}
                     </span>
+                    {(() => {
+                      const dayFinancials = (calendarData.blocksWithDate[dateStr] ?? []).flatMap(d => d.item.financials ?? []);
+                      if (dayFinancials.length === 0) return null;
+                      const net = financialNet(dayFinancials);
+                      return (
+                        <span className={`text-[9px] font-bold tabular-nums tracking-tight ${net >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                          Funds: {net >= 0 ? '' : '-'}{formatRupees(net)}
+                        </span>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -286,7 +324,80 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                     });
                   }
 
+                  // Build slot → manual actions map: one square capsule per block per slot
+                  const actionSlotMap = new Map<SlotKey, Array<{ item: CalendarItemData; slotActions: CanvasAction[] }>>();
+                  const actionBlocksOnDay = calendarData.actionsOnDay[dateStr];
+                  if (actionBlocksOnDay) {
+                    actionBlocksOnDay.forEach(({ item, actions }) => {
+                      const bySlot = new Map<SlotKey, CanvasAction[]>();
+                      actions.forEach(a => {
+                        const sk = slotKey(new Date(a.timestamp).getHours());
+                        if (!bySlot.has(sk)) bySlot.set(sk, []);
+                        bySlot.get(sk)!.push(a);
+                      });
+                      bySlot.forEach((slotActions, sk) => {
+                        if (!actionSlotMap.has(sk)) actionSlotMap.set(sk, []);
+                        actionSlotMap.get(sk)!.push({ item, slotActions });
+                      });
+                    });
+                  }
+
                   const popupSide = idx >= 4 ? 'right-full mr-2' : 'left-full ml-2';
+
+                  const renderActionCapsules = (sk: SlotKey) => {
+                    const actionBlocks = actionSlotMap.get(sk) || [];
+                    return actionBlocks.map(({ item, slotActions }) => {
+                      const capsuleKey = `log-${item.item.id}-${String(sk)}`;
+                      const isPinned = pinnedPopup === capsuleKey;
+                      const blockTitle = item.item.content?.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
+                      // Strip markdown: headings, bold, italic, inline code, links
+                      const plainTitle = blockTitle.replace(/^#{1,6}\s+/, '').replace(/[*_`~]/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
+                      const capsuleLabel = plainTitle.slice(0, 15);
+                      const totalDuration = slotActions.reduce((sum, a) => sum + a.duration, 0);
+                      return (
+                        <div key={capsuleKey} className="relative group flex items-center">
+                          <button
+                            onClick={() => setPinnedPopup(isPinned ? null : capsuleKey)}
+                            className={`px-1.5 py-0.5 rounded-sm text-[9px] font-semibold tracking-tight whitespace-nowrap transition-all active:scale-95 shrink-0 ${isPinned ? 'bg-sky-400/30 text-sky-200 shadow-[0_0_10px_rgba(56,189,248,0.4)] ring-1 ring-sky-400/50' : 'bg-sky-500/15 text-sky-400/70 hover:bg-sky-500/25 hover:text-sky-300 ring-1 ring-sky-500/20'}`}
+                            title={`${plainTitle} — ${slotActions.length} log${slotActions.length > 1 ? 's' : ''}`}
+                          >
+                            {capsuleLabel}
+                          </button>
+                          <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
+                            <div className="bg-[#0b101c] p-4 rounded-[20px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
+                              <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-sky-500/40`} />
+                              <h4 className="text-sm font-black text-sky-300 mb-1 flex items-center gap-2 leading-tight">
+                                <ListChecks size={12} className="text-sky-400 shrink-0" />
+                                <span className="truncate">{plainTitle.length > 32 ? plainTitle.slice(0, 32) + '…' : plainTitle}</span>
+                              </h4>
+                              {item.path.length > 0 && (
+                                <div className="text-[10px] text-sky-400/40 font-medium mb-3">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>
+                              )}
+                              <div className="flex items-center gap-2 mb-3 text-[10px] font-mono text-white/30">
+                                <span>{slotActions.length} {slotActions.length === 1 ? 'entry' : 'entries'}</span>
+                                {totalDuration > 0 && <><span className="text-white/10">·</span><span>{fmtDuration(totalDuration)}</span></>}
+                              </div>
+                              <div className="space-y-2">
+                                {[...slotActions].sort((a, b) => a.timestamp - b.timestamp).map(a => (
+                                  <div key={a.id} className="flex gap-2 items-baseline">
+                                    <span className="text-[10px] font-mono text-sky-400/70 shrink-0">{new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span className="text-[11px] text-white/65 leading-snug flex-1">{a.label}</span>
+                                    {a.duration > 0 && <span className="text-[9px] font-mono text-white/20 shrink-0">{fmtDuration(a.duration)}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => { setPinnedPopup(null); onNavigateToItem(item.item, item.path); }}
+                                className="mt-3 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 hover:border-sky-500/40 text-[11px] font-semibold text-sky-400/70 hover:text-sky-300 transition-all"
+                              >
+                                Show on Canvas
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  };
 
                   return (
                     <div key={dateStr} className={`border-r border-white/5 last:border-r-0 ${isToday ? 'bg-sky-500/[0.02]' : ''}`}>
@@ -353,6 +464,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                         const blocks = slotMap.get('pre') || [];
                         return (
                           <div className="border-b border-white/[0.06] relative px-1.5 py-1 flex flex-wrap gap-1 items-start bg-white/[0.005] hover:bg-white/[0.01] transition-colors" style={{ height: '56px' }}>
+                            {renderActionCapsules('pre')}
                             {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
                               const dotKey = `yellow-${item.item.id}-pre`;
                               const isYellowPinned = pinnedPopup === dotKey;
@@ -388,6 +500,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                             style={{ height: '48px' }}
                           >
                             {isCurrentHour && <div className="absolute left-0 top-0 w-full h-px bg-sky-400/40" />}
+                            {renderActionCapsules(hour)}
                             {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
                               const dotKey = `yellow-${item.item.id}-${hour}`;
                               const isYellowPinned = pinnedPopup === dotKey;
@@ -451,6 +564,7 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                         const blocks = slotMap.get('post') || [];
                         return (
                           <div className="border-b border-white/[0.06] relative px-1.5 py-1 flex flex-wrap gap-1 items-start bg-white/[0.005] hover:bg-white/[0.01] transition-colors" style={{ height: '56px' }}>
+                            {renderActionCapsules('post')}
                             {blocks.map(({ item, slotEntries, allEntries, tagsInHistory }) => {
                               const dotKey = `yellow-${item.item.id}-post`;
                               const isYellowPinned = pinnedPopup === dotKey;
