@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Hash, Play, Save, X, Layers, Calendar } from 'lucide-react';
+import { Hash, Play, Save, X, Layers, Calendar, Inbox } from 'lucide-react';
 import { getRelativeLabel } from '@/utils/dateUtils';
 import { CanvasItem } from '@/types/canvas';
 import { getItemsAtPath } from '@/hooks/useCanvas';
@@ -13,6 +13,18 @@ export interface SubCanvasSuggestion {
     parentName?: string;
 }
 
+const AGE_FILTER_LABELS: Record<number, string> = {
+    8: 'All',
+    7: 'This week',
+    6: 'Last week',
+    5: 'Prev. week',
+    4: '2 wks prior',
+    3: 'This month',
+    2: 'Last month',
+    1: 'Prev. month',
+    0: 'Older',
+};
+
 interface Props {
     onSave: (content: string, tags: string[], date?: string) => void;
     onAddToSubCanvas: (path: string[], content: string, tags: string[], date?: string) => void;
@@ -22,6 +34,9 @@ interface Props {
     tagMaster: string[];
     onAddToTagMaster: (tag: string) => void;
     allItems: CanvasItem[];
+    hasInbox?: boolean;
+    ageFilter?: number;
+    onAgeFilterChange?: (value: number) => void;
 }
 
 /** Extract all #hashtag words from a string (deduped, without the #). */
@@ -49,6 +64,9 @@ export const QuickEntryBar: React.FC<Props> = ({
     tagMaster,
     onAddToTagMaster,
     allItems,
+    hasInbox,
+    ageFilter = 8,
+    onAgeFilterChange,
 }) => {
     const [text, setText] = useState('');
     const [date, setDate] = useState<string | undefined>(undefined);
@@ -267,6 +285,14 @@ export const QuickEntryBar: React.FC<Props> = ({
                     </button>
                 )}
 
+                {/* Default Inbox indicator — shown when no specific canvas is targeted */}
+                {!targetCanvas && hasInbox && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-400 border border-sky-500/25 shrink-0">
+                        <Inbox size={10} />
+                        Inbox
+                    </div>
+                )}
+
                 {/* Selected block badge */}
                 {selectedBlock && (
                     <button
@@ -467,6 +493,31 @@ export const QuickEntryBar: React.FC<Props> = ({
                         <Play size={13} />
                         Timer
                     </button>
+                )}
+
+                {/* Age filter slider */}
+                {onAgeFilterChange && (
+                    <>
+                        <div className="w-px h-5 bg-white/10 shrink-0" />
+                        <div className="flex flex-col items-center gap-0.5 shrink-0" title="Filter by age">
+                            <span className={`text-[9px] font-semibold uppercase tracking-wider transition-colors ${ageFilter === 8 ? 'text-white/25' : 'text-amber-400'}`}>
+                                {AGE_FILTER_LABELS[ageFilter]}
+                            </span>
+                            <input
+                                type="range"
+                                min={0}
+                                max={8}
+                                step={1}
+                                value={ageFilter}
+                                onChange={(e) => onAgeFilterChange(Number(e.target.value))}
+                                className="age-filter-slider w-28 h-1 cursor-pointer"
+                                style={{
+                                    accentColor: ageFilter === 8 ? 'rgba(255,255,255,0.2)' : '#fbbf24',
+                                }}
+                                title={`Age filter: ${AGE_FILTER_LABELS[ageFilter]}`}
+                            />
+                        </div>
+                    </>
                 )}
             </div>
         </div>

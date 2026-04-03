@@ -24,6 +24,8 @@ const STORAGE_KEY = 'black-board-data';
 
 const initialState: CanvasState = {
   items: [],
+  inbox: [],
+  archive: [],
   backgroundColor: '#0f172a',
   zoom: 1,
 };
@@ -74,7 +76,19 @@ export const useCanvas = () => {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
-          setState(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          // Migrate old Inbox canvas item → dedicated inbox array
+          if (!Array.isArray(parsed.inbox)) {
+            const oldInbox = parsed.items?.find((i: CanvasItem) => i.type === 'canvas' && i.content === 'Inbox');
+            parsed.inbox = oldInbox?.children ?? [];
+            if (oldInbox) {
+              parsed.items = parsed.items.filter((i: CanvasItem) => !(i.type === 'canvas' && i.content === 'Inbox'));
+            }
+          }
+          if (!Array.isArray(parsed.archive)) {
+            parsed.archive = [];
+          }
+          setState(parsed);
         } catch (e) {
           console.error('Failed to load canvas state', e);
         }
@@ -97,7 +111,7 @@ export const useCanvas = () => {
         ...prev,
         items: updateItemsAtPath(prev.items, path, (items) => [
           ...items,
-          { ...sanitised, id },
+          { ...sanitised, id, createdAt: sanitised.createdAt ?? Date.now(), modifiedAt: Date.now() },
         ]),
       }));
       return id;
@@ -186,6 +200,7 @@ export const useCanvas = () => {
               return {
                 ...item,
                 ...updates,
+                modifiedAt: Date.now(),
                 history: history.length > (item.history?.length ?? 0) ? history : item.history,
               };
             }
@@ -331,6 +346,98 @@ export const useCanvas = () => {
     }));
   }, []);
 
+  const addToInbox = useCallback(
+    async (item: Omit<CanvasItem, 'id'> & { id?: string }): Promise<string> => {
+      const sanitised = await offloadImageIfNeeded(item);
+      const id = sanitised.id || crypto.randomUUID();
+      const history: CanvasHistoryEntry[] = [
+        ...(sanitised.history ?? []),
+        { id: crypto.randomUUID(), type: 'navigation', action: 'Sent to Inbox', timestamp: Date.now() },
+      ];
+      setState((prev) => ({
+        ...prev,
+        inbox: [...(prev.inbox ?? []), { ...sanitised, id, createdAt: sanitised.createdAt ?? Date.now(), history }],
+      }));
+      return id;
+    },
+    []
+  );
+
+  const removeFromInbox = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      inbox: (prev.inbox ?? []).filter((i) => i.id !== id),
+    }));
+  }, []);
+
+  const updateInboxItem = useCallback((id: string, updates: Partial<CanvasItem>) => {
+    setState((prev) => ({
+      ...prev,
+      inbox: (prev.inbox ?? []).map((i) => (i.id === id ? { ...i, ...updates } : i)),
+    }));
+  }, []);
+
+  const moveFromInboxToCanvas = useCallback(
+    (item: CanvasItem, toPath: string[], newX?: number, newY?: number) => {
+      setState((prev) => {
+        const history: CanvasHistoryEntry[] = [
+          ...(item.history ?? []),
+          { id: crypto.randomUUID(), type: 'navigation', action: toPath.length > 0 ? 'Moved from Inbox to sub-canvas' : 'Moved from Inbox to board', timestamp: Date.now() },
+        ];
+        const movedItem = { ...item, history, ...(newX !== undefined ? { x: newX, y: newY ?? item.y } : {}) };
+        const newItems = updateItemsAtPath(prev.items, toPath, (items) => [...items, movedItem]);
+        return { ...prev, items: newItems, inbox: (prev.inbox ?? []).filter((i) => i.id !== item.id) };
+      });
+    },
+    []
+  );
+
+  const addToArchive = useCallback(
+    async (item: Omit<CanvasItem, 'id'> & { id?: string }): Promise<string> => {
+      const sanitised = await offloadImageIfNeeded(item);
+      const id = sanitised.id || crypto.randomUUID();
+      const history: CanvasHistoryEntry[] = [
+        ...(sanitised.history ?? []),
+        { id: crypto.randomUUID(), type: 'navigation', action: 'Archived', timestamp: Date.now() },
+      ];
+      setState((prev) => ({
+        ...prev,
+        archive: [...(prev.archive ?? []), { ...sanitised, id, createdAt: sanitised.createdAt ?? Date.now(), history }],
+      }));
+      return id;
+    },
+    []
+  );
+
+  const removeFromArchive = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      archive: (prev.archive ?? []).filter((i) => i.id !== id),
+    }));
+  }, []);
+
+  const updateArchiveItem = useCallback((id: string, updates: Partial<CanvasItem>) => {
+    setState((prev) => ({
+      ...prev,
+      archive: (prev.archive ?? []).map((i) => (i.id === id ? { ...i, ...updates } : i)),
+    }));
+  }, []);
+
+  const moveFromArchiveToCanvas = useCallback(
+    (item: CanvasItem, toPath: string[], newX?: number, newY?: number) => {
+      setState((prev) => {
+        const history: CanvasHistoryEntry[] = [
+          ...(item.history ?? []),
+          { id: crypto.randomUUID(), type: 'navigation', action: toPath.length > 0 ? 'Restored from Archives to sub-canvas' : 'Restored from Archives', timestamp: Date.now() },
+        ];
+        const movedItem = { ...item, history, ...(newX !== undefined ? { x: newX, y: newY ?? item.y } : {}) };
+        const newItems = updateItemsAtPath(prev.items, toPath, (items) => [...items, movedItem]);
+        return { ...prev, items: newItems, archive: (prev.archive ?? []).filter((i) => i.id !== item.id) };
+      });
+    },
+    []
+  );
+
   return {
     state,
     addItem,
@@ -349,5 +456,13 @@ export const useCanvas = () => {
     loadState,
     mergeItems,
     isLoaded,
+    addToInbox,
+    removeFromInbox,
+    updateInboxItem,
+    moveFromInboxToCanvas,
+    addToArchive,
+    removeFromArchive,
+    updateArchiveItem,
+    moveFromArchiveToCanvas,
   };
 };

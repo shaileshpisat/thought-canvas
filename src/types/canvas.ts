@@ -26,6 +26,8 @@ export interface CanvasHistoryEntry {
 
 export interface CanvasItem {
   id: string;
+  createdAt?: number;   // unix ms timestamp — set once on creation
+  modifiedAt?: number;  // unix ms timestamp — updated on every edit
   type: ItemType;
   x: number;
   y: number;
@@ -55,6 +57,8 @@ export interface CanvasItem {
 
 export interface CanvasState {
   items: CanvasItem[];
+  inbox: CanvasItem[];
+  archive: CanvasItem[];
   backgroundColor: string;
   zoom: number;
 }

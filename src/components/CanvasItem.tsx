@@ -4,12 +4,13 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2 } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive } from 'lucide-react';
 import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
 import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
+import { BlockLinkPicker } from './BlockLinkPicker';
 
 /** Resolves an image item's content to a renderable src string.
  *  - bare base64 / URL: returned as-is
@@ -47,6 +48,7 @@ interface Props {
     // Move in/out of sub-canvases
     canEject?: boolean;
     onEject?: () => void;
+    onArchive?: () => void;
     moveTargets?: ICanvasItem[]; // sibling canvas-type items to move into
     onMoveInto?: (targetCanvasId: string) => void;
     // Timer support
@@ -60,6 +62,8 @@ interface Props {
     tagMaster?: string[];
     onUpdateTags?: (id: string, tags: string[]) => void;
     onLogHistory?: (id: string, type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => void;
+    allItems?: ICanvasItem[];
+    onNavigateToBlock?: (path: string[], itemId: string) => void;
 }
 
 import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
@@ -88,7 +92,7 @@ function formatTimerElapsed(timer: CanvasTimer): string {
 }
 
 
-const MD_COMPONENTS = {
+const MD_COMPONENTS_BASE = {
     h1: ({ node, ...props }: any) => <h1 className="text-xl font-bold text-sky-400 mb-3 mt-4 first:mt-0" {...props} />,
     h2: ({ node, ...props }: any) => <h2 className="text-lg font-bold text-sky-400/90 mb-2 mt-3" {...props} />,
     h3: ({ node, ...props }: any) => <h3 className="text-base font-bold text-sky-400/80 mb-2 mt-2" {...props} />,
@@ -102,12 +106,36 @@ const MD_COMPONENTS = {
     code: ({ node, ...props }: any) => (
         <code className="text-sky-300 bg-white/10 px-1.5 py-0.5 rounded text-[0.9em] font-mono" {...props} />
     ),
-    a: ({ node, ...props }: any) => (
-        <a className="text-sky-400 underline hover:text-sky-300 transition-colors" target="_blank" rel="noopener noreferrer" {...props} />
-    ),
 };
 
+function makeMdComponents(onNavigateToBlock?: (path: string[], itemId: string) => void) {
+    return {
+        ...MD_COMPONENTS_BASE,
+        a: ({ node, href, children, ...props }: any) => {
+            if (href?.startsWith('block://') && onNavigateToBlock) {
+                const blockId = href.slice('block://'.length);
+                return (
+                    <button
+                        className="text-violet-400 underline hover:text-violet-300 transition-colors decoration-dotted cursor-pointer"
+                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); onNavigateToBlock([], blockId); }}
+                    >
+                        {children}
+                    </button>
+                );
+            }
+            return (
+                <a className="text-sky-400 underline hover:text-sky-300 transition-colors" target="_blank" rel="noopener noreferrer" href={href} {...props}>
+                    {children}
+                </a>
+            );
+        },
+    };
+}
+
 const DURATION_PRESETS = [
+    { label: '5 min', minutes: 5 },
+    { label: '10 min', minutes: 10 },
     { label: '15 min', minutes: 15 },
     { label: '30 min', minutes: 30 },
     { label: '45 min', minutes: 45 },
@@ -149,7 +177,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,6 +198,8 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [showTagSuggestions, setShowTagSuggestions] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
     const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+    const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
+    const blockPickerTriggerPos = useRef<number>(0); // cursor position where [[ was typed
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
@@ -347,9 +377,26 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 ref={textareaRef}
                                 className="w-full h-full bg-transparent outline-none resize-none text-white/90 placeholder-white/20 p-4 font-mono text-sm leading-relaxed"
                                 value={item.content}
-                                onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    const cursor = e.target.selectionStart ?? val.length;
+                                    const before = val.slice(0, cursor);
+                                    if (before.endsWith('[[') && allItems.length > 0) {
+                                        blockPickerTriggerPos.current = cursor - 2;
+                                        const ta = e.target;
+                                        const rect = ta.getBoundingClientRect();
+                                        setBlockPickerPos({ top: rect.bottom + 4, left: rect.left });
+                                    } else if (blockPickerPos) {
+                                        setBlockPickerPos(null);
+                                    }
+                                    onUpdate(item.id, { content: val });
+                                }}
                                 onBlur={() => { if (!openingDatePicker.current) setIsEditing(false); }}
                                 onKeyDown={(e) => {
+                                    if (e.key === 'Escape' && blockPickerPos) {
+                                        setBlockPickerPos(null);
+                                        return;
+                                    }
                                     if (e.key === '@') {
                                         e.preventDefault();
                                         openingDatePicker.current = true;
@@ -367,11 +414,41 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             >
                                 {item.content
                                     ? <div className="text-sm max-w-none text-white/90">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
                                       </div>
                                     : <span className="text-white/30 italic">Click to edit...</span>
                                 }
                             </div>
+                        )}
+
+                        {/* Block link picker — shown when user types [[ in edit mode */}
+                        {isEditing && blockPickerPos && (
+                            <BlockLinkPicker
+                                allItems={allItems}
+                                anchorPos={blockPickerPos}
+                                onPick={(pickedItem, pickedPath) => {
+                                    const label = pickedItem.type === 'link'
+                                        ? (pickedItem.metadata?.title || pickedItem.content || 'Block')
+                                        : (pickedItem.content?.split('\n')[0]?.slice(0, 60) || 'Block');
+                                    const insertion = `[${label}](block://${pickedItem.id})`;
+                                    const ta = textareaRef.current;
+                                    if (ta) {
+                                        const before = item.content.slice(0, blockPickerTriggerPos.current);
+                                        const after = item.content.slice(ta.selectionStart ?? item.content.length);
+                                        onUpdate(item.id, { content: before + insertion + after });
+                                        requestAnimationFrame(() => {
+                                            const pos = blockPickerTriggerPos.current + insertion.length;
+                                            ta.setSelectionRange(pos, pos);
+                                            ta.focus();
+                                        });
+                                    }
+                                    setBlockPickerPos(null);
+                                }}
+                                onClose={() => {
+                                    setBlockPickerPos(null);
+                                    textareaRef.current?.focus();
+                                }}
+                            />
                         )}
 
                         {/* Inline edit: floating preview panel next to the card */}
@@ -387,7 +464,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 </div>
                                 <div className="flex-1 p-4 overflow-y-auto text-sm text-white/90">
                                     {item.content
-                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
                                         : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
                                     }
                                 </div>
@@ -422,8 +499,25 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         <textarea
                                             className="w-1/2 h-full bg-transparent outline-none resize-none text-white/90 placeholder-white/20 p-5 font-mono text-sm leading-relaxed"
                                             value={item.content}
-                                            onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                const cursor = e.target.selectionStart ?? val.length;
+                                                const before = val.slice(0, cursor);
+                                                if (before.endsWith('[[') && allItems.length > 0) {
+                                                    blockPickerTriggerPos.current = cursor - 2;
+                                                    const ta = e.target;
+                                                    const rect = ta.getBoundingClientRect();
+                                                    setBlockPickerPos({ top: rect.top + rect.height / 2, left: rect.left + rect.width / 2 });
+                                                } else if (blockPickerPos) {
+                                                    setBlockPickerPos(null);
+                                                }
+                                                onUpdate(item.id, { content: val });
+                                            }}
                                             onKeyDown={(e) => {
+                                                if (e.key === 'Escape' && blockPickerPos) {
+                                                    setBlockPickerPos(null);
+                                                    return;
+                                                }
                                                 if (e.key === '@') {
                                                     e.preventDefault();
                                                     openingDatePicker.current = true;
@@ -438,7 +532,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         <div className="w-px bg-white/10 shrink-0" />
                                         <div className="w-1/2 h-full p-5 overflow-y-auto text-sm text-white/90">
                                             {item.content
-                                                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>{item.content}</ReactMarkdown>
+                                                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
                                                 : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
                                             }
                                         </div>
@@ -1019,6 +1113,16 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         </button>
 
                         <div className="w-[1px] h-4 bg-white/10" />
+
+                        {onArchive && (
+                            <button
+                                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onArchive(); }}
+                                className="p-1.5 text-white/40 hover:text-amber-400 transition-colors"
+                                title="Move to Archives"
+                            >
+                                <Archive size={16} />
+                            </button>
+                        )}
 
                         <button
                             onClick={() => onRemove(item.id)}

@@ -26,6 +26,9 @@ import {
     Square,
     Timer,
     UserCircle,
+    Inbox,
+    RotateCcw,
+    Archive,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -72,6 +75,14 @@ export const Canvas: React.FC = () => {
         clearCanvas,
         mergeItems,
         isLoaded,
+        addToInbox,
+        removeFromInbox,
+        moveFromInboxToCanvas,
+        updateInboxItem,
+        addToArchive,
+        removeFromArchive,
+        updateArchiveItem,
+        moveFromArchiveToCanvas,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
@@ -86,7 +97,7 @@ export const Canvas: React.FC = () => {
     });
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
-    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan'>('canvas');
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
@@ -105,6 +116,7 @@ export const Canvas: React.FC = () => {
         }
         try { return JSON.parse(tags || '[]'); } catch { return []; }
     });
+    const [ageFilter, setAgeFilter] = useState(8); // 8 = All, 0 = Older
     const [clockTick, setClockTick] = useState(0);
     const [alertingIds, setAlertingIds] = useState<Set<string>>(new Set());
     const lastAlertRef = useRef<number>(0);
@@ -170,17 +182,87 @@ export const Canvas: React.FC = () => {
         reader.readAsText(file);
     };
 
+    // Find an item anywhere in the tree; returns { item, path } where path is the parent path for updateItemAtPath
+    const findItemAnywhere = (id: string): { item: CanvasItem; path: string[] } | null => {
+        const search = (items: CanvasItem[], path: string[]): { item: CanvasItem; path: string[] } | null => {
+            for (const i of items) {
+                if (i.id === id) return { item: i, path };
+                if (i.children) {
+                    const found = search(i.children, [...path, i.id]);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        return search(stateRef.current.items, []);
+    };
+
     // Refs so paste handler never captures stale values
     const navigationPathRef = useRef(navigationPath);
     navigationPathRef.current = navigationPath;
     const showSearchRef = useRef(showSearch);
     showSearchRef.current = showSearch;
+    const viewModeRef = useRef(viewMode);
+    viewModeRef.current = viewMode;
     const currentItemsRef = useRef<CanvasItem[]>([]);
 
-    const currentItems = getItemsAtPath(state.items, navigationPath);
-    currentItemsRef.current = currentItems;
+    const rawCurrentItems = getItemsAtPath(state.items, navigationPath);
+
+    const ageFilteredItems = React.useMemo(() => {
+        if (ageFilter === 8) return rawCurrentItems;
+        const today = new Date();
+        const dow = today.getDay(); // 0=Sun
+        const daysToMon = dow === 0 ? 6 : dow - 1;
+        const thisWeekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysToMon, 0, 0, 0, 0).getTime();
+        const lastWeekStart = thisWeekStart - 7 * 86400000;
+        const prevWeekStart = lastWeekStart - 7 * 86400000;
+        const prev2WeekStart = prevWeekStart - 7 * 86400000;
+        const thisMonStart = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0).getTime();
+        const lastMonStart = new Date(today.getFullYear(), today.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+        const prev2MonStart = new Date(today.getFullYear(), today.getMonth() - 2, 1, 0, 0, 0, 0).getTime();
+        const now = Date.now();
+        return rawCurrentItems.filter((item) => {
+            const created = item.modifiedAt ?? item.createdAt ?? now;
+            switch (ageFilter) {
+                case 7: return created >= thisWeekStart;
+                case 6: return created >= lastWeekStart && created < thisWeekStart;
+                case 5: return created >= prevWeekStart && created < lastWeekStart;
+                case 4: return created >= prev2WeekStart && created < prevWeekStart;
+                case 3: return created >= thisMonStart;
+                case 2: return created >= lastMonStart && created < thisMonStart;
+                case 1: return created >= prev2MonStart && created < lastMonStart;
+                case 0: return created < prev2MonStart;
+                default: return true;
+            }
+        });
+    }, [rawCurrentItems, ageFilter]);
+
+    const currentItems = ageFilteredItems;
+    currentItemsRef.current = rawCurrentItems;
 
     const breadcrumbLabels = getBreadcrumbLabels(state.items, navigationPath);
+
+    // Inbox items from dedicated state.inbox array
+    const inboxItems = state.inbox ?? [];
+    const inboxItemCount = inboxItems.length;
+    const rootCanvasItems = state.items.filter((i) => i.type === 'canvas');
+
+    const archiveItems = state.archive ?? [];
+    const archiveItemCount = archiveItems.length;
+
+    const resurfaceCount = React.useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayMs = today.getTime();
+        const MS_PER_DAY = 86400000;
+        return inboxItems.filter((item) => {
+            const createdAt = item.createdAt ?? todayMs;
+            const createdDay = new Date(createdAt);
+            createdDay.setHours(0, 0, 0, 0);
+            const d = Math.round((todayMs - createdDay.getTime()) / MS_PER_DAY);
+            return d === 0 || d === 1 || (d >= 7 && d % 7 === 0);
+        }).length;
+    }, [inboxItems, clockTick]); // clockTick ensures it updates at midnight if open
 
     // Date stats across all items (including nested)
     const allFlat = flattenItems(state.items);
@@ -302,8 +384,8 @@ export const Canvas: React.FC = () => {
     };
 
     const handleQuickSave = (content: string, tags: string[], date?: string) => {
-        const { x, y } = findEmptyLocation(currentItemsRef.current, 280, 140);
-        addItemAtPath(navigationPathRef.current, { type: 'text', content, x, y, tags, ...(date ? { date } : {}) });
+        const { x, y } = findEmptyLocation(state.inbox ?? [], 280, 140);
+        addToInbox({ type: 'text', content, x, y, tags, ...(date ? { date } : {}) });
     };
 
     const handleAddToSubCanvas = (path: string[], content: string, tags: string[], date?: string) => {
@@ -313,9 +395,9 @@ export const Canvas: React.FC = () => {
     };
 
     const handleQuickStartTimer = (content: string, tags: string[], date?: string) => {
-        const { x, y } = findEmptyLocation(currentItemsRef.current, 280, 140);
         const now = Date.now();
-        addItemAtPath(navigationPathRef.current, {
+        const { x, y } = findEmptyLocation(state.inbox ?? [], 280, 140);
+        addToInbox({
             type: 'text',
             content,
             x,
@@ -326,13 +408,23 @@ export const Canvas: React.FC = () => {
         });
     };
 
+    const handleArchive = (item: CanvasItem) => {
+        const { x, y } = findEmptyLocation(state.archive ?? [], item.width ?? 280, item.height ?? 140);
+        removeItemAtPath(navigationPathRef.current, item.id);
+        addToArchive({ ...item, x, y });
+    };
+
     const handleToggleTimer = (id: string) => {
-        const item = currentItemsRef.current.find((i) => i.id === id);
-        if (!item) return;
+        const found = findItemAnywhere(id) ?? (() => {
+            const item = currentItemsRef.current.find((i) => i.id === id);
+            return item ? { item, path: navigationPathRef.current } : null;
+        })();
+        if (!found) return;
+        const { item, path } = found;
         const now = Date.now();
         const today = new Date().toISOString().slice(0, 10);
         if (!item.timer) {
-            updateItemAtPath(navigationPathRef.current, id, {
+            updateItemAtPath(path, id, {
                 timer: { isRunning: true, startTime: now, totalElapsed: 0, sessions: [{ start: now }] },
                 date: today,
             });
@@ -343,11 +435,11 @@ export const Canvas: React.FC = () => {
             const sessions = (item.timer.sessions ?? []).map((s) =>
                 s.end === undefined ? { ...s, end: now } : s
             );
-            updateItemAtPath(navigationPathRef.current, id, {
+            updateItemAtPath(path, id, {
                 timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
             }, { historyActionLabel: 'Paused timer' });
         } else {
-            updateItemAtPath(navigationPathRef.current, id, {
+            updateItemAtPath(path, id, {
                 timer: {
                     ...item.timer,
                     isRunning: true,
@@ -360,17 +452,22 @@ export const Canvas: React.FC = () => {
     };
 
     const handleStopTimer = (id: string) => {
-        const item = currentItemsRef.current.find((i) => i.id === id);
-        if (!item?.timer) return;
+        const found = findItemAnywhere(id) ?? (() => {
+            const item = currentItemsRef.current.find((i) => i.id === id);
+            return item ? { item, path: navigationPathRef.current } : null;
+        })();
+        if (!found?.item.timer) return;
+        const { item, path } = found;
+        const timer = item.timer!;
         const now = Date.now();
-        const elapsed = item.timer.isRunning
-            ? item.timer.totalElapsed + Math.floor((now - item.timer.startTime) / 1000)
-            : item.timer.totalElapsed;
-        const sessions = item.timer.isRunning
-            ? (item.timer.sessions ?? []).map((s) => (s.end === undefined ? { ...s, end: now } : s))
-            : (item.timer.sessions ?? []);
-        updateItemAtPath(navigationPathRef.current, id, {
-            timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
+        const elapsed = timer.isRunning
+            ? timer.totalElapsed + Math.floor((now - timer.startTime) / 1000)
+            : timer.totalElapsed;
+        const sessions = timer.isRunning
+            ? (timer.sessions ?? []).map((s) => (s.end === undefined ? { ...s, end: now } : s))
+            : (timer.sessions ?? []);
+        updateItemAtPath(path, id, {
+            timer: { ...timer, isRunning: false, totalElapsed: elapsed, sessions },
         }, { historyActionLabel: 'Stopped timer' });
     };
 
@@ -469,6 +566,10 @@ export const Canvas: React.FC = () => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 if (showSearchRef.current) return; // let SearchPanel handle its own Escape
+                if (viewModeRef.current === 'inbox' || viewModeRef.current === 'archive') {
+                    setViewMode('canvas');
+                    return;
+                }
                 if (navigationPathRef.current.length > 0) {
                     setNavigationPath((prev) => prev.slice(0, -1));
                 }
@@ -524,6 +625,7 @@ export const Canvas: React.FC = () => {
                             onEnterCanvas={handleEnterCanvas}
                             canEject={navigationPath.length > 0}
                             onEject={() => handleEject(item)}
+                            onArchive={() => handleArchive(item)}
                             moveTargets={currentItems.filter((i) => i.type === 'canvas' && i.id !== item.id)}
                             onMoveInto={(targetId) => handleMoveInto(item, targetId)}
                             clockTick={clockTick}
@@ -539,6 +641,28 @@ export const Canvas: React.FC = () => {
                                 updateItem(id, { tags });
                             }}
                             onLogHistory={handleLogHistory}
+                            allItems={state.items.map(i =>
+                                i.type === 'canvas' && i.content === 'Inbox'
+                                    ? { ...i, children: [] }
+                                    : i
+                            )}
+                            onNavigateToBlock={(_ignoredPath, blockId) => {
+                                // Resolve the full path by searching the tree
+                                const findPath = (items: CanvasItem[], id: string, current: string[]): string[] | null => {
+                                    for (const it of items) {
+                                        if (it.id === id) return current;
+                                        if (it.children?.length) {
+                                            const found = findPath(it.children, id, [...current, it.id]);
+                                            if (found) return found;
+                                        }
+                                    }
+                                    return null;
+                                };
+                                const resolvedPath = findPath(state.items, blockId, []) ?? [];
+                                setNavigationPath(resolvedPath);
+                                setHighlightedItemId(blockId);
+                                setTimeout(() => setHighlightedItemId(null), 2000);
+                            }}
                         />
                     ))}
                 </div>
@@ -551,7 +675,7 @@ export const Canvas: React.FC = () => {
                         setViewMode('canvas');
                     }}
                 />
-            ) : (
+            ) : viewMode === 'plan' ? (
                 <PlanBoard
                     items={state.items}
                     recurringDays={recurringDays}
@@ -561,10 +685,106 @@ export const Canvas: React.FC = () => {
                         setViewMode('canvas');
                     }}
                 />
+            ) : viewMode === 'inbox' ? (
+                /* viewMode === 'inbox' */
+                <div className="absolute inset-0 w-full h-full">
+                    {inboxItems.length === 0 ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
+                            <Inbox size={40} className="text-white/10" />
+                            <p className="text-white/25 text-sm font-medium">Inbox is empty</p>
+                            <p className="text-white/15 text-xs">New notes captured here by default</p>
+                        </div>
+                    ) : (
+                        inboxItems.map((item) => (
+                            <CanvasItemComponent
+                                key={item.id}
+                                item={item}
+                                onUpdate={(id, updates) => updateInboxItem(id, updates)}
+                                onRemove={(id) => removeFromInbox(id)}
+                                onMove={(id, x, y) => updateInboxItem(id, { x, y })}
+                                onEnterCanvas={() => {}}
+                                canEject={true}
+                                onEject={() => {
+                                    const { x, y } = findEmptyLocation(state.items, item.width ?? 240, item.height ?? 120);
+                                    moveFromInboxToCanvas(item, [], x, y);
+                                }}
+                                moveTargets={rootCanvasItems}
+                                onMoveInto={(targetId) => {
+                                    const targetItems = getItemsAtPath(state.items, [targetId]);
+                                    const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
+                                    moveFromInboxToCanvas(item, [targetId], x, y);
+                                }}
+                                clockTick={clockTick}
+                                onToggleTimer={handleToggleTimer}
+                                onStopTimer={handleStopTimer}
+                                isAlerting={alertingIds.has(item.id)}
+                                isHighlighted={false}
+                                onLogAction={() => {}}
+                                onDeleteAction={() => {}}
+                                tagMaster={tagMaster}
+                                onUpdateTags={(id, tags) => {
+                                    tags.forEach((t) => addToTagMaster(t));
+                                    updateInboxItem(id, { tags });
+                                }}
+                                onLogHistory={() => {}}
+                                allItems={state.items}
+                                onNavigateToBlock={() => {}}
+                            />
+                        ))
+                    )}
+                </div>
+            ) : (
+                /* viewMode === 'archive' */
+                <div className="absolute inset-0 w-full h-full">
+                    {archiveItems.length === 0 ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
+                            <Archive size={40} className="text-white/10" />
+                            <p className="text-white/25 text-sm font-medium">Archives is empty</p>
+                            <p className="text-white/15 text-xs">Archived items appear here</p>
+                        </div>
+                    ) : (
+                        archiveItems.map((item) => (
+                            <CanvasItemComponent
+                                key={item.id}
+                                item={item}
+                                onUpdate={(id, updates) => updateArchiveItem(id, updates)}
+                                onRemove={(id) => removeFromArchive(id)}
+                                onMove={(id, x, y) => updateArchiveItem(id, { x, y })}
+                                onEnterCanvas={() => {}}
+                                canEject={true}
+                                onEject={() => {
+                                    const { x, y } = findEmptyLocation(state.items, item.width ?? 240, item.height ?? 120);
+                                    moveFromArchiveToCanvas(item, [], x, y);
+                                }}
+                                moveTargets={rootCanvasItems}
+                                onMoveInto={(targetId) => {
+                                    const targetItems = getItemsAtPath(state.items, [targetId]);
+                                    const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
+                                    moveFromArchiveToCanvas(item, [targetId], x, y);
+                                }}
+                                clockTick={clockTick}
+                                onToggleTimer={handleToggleTimer}
+                                onStopTimer={handleStopTimer}
+                                isAlerting={alertingIds.has(item.id)}
+                                isHighlighted={false}
+                                onLogAction={() => {}}
+                                onDeleteAction={() => {}}
+                                tagMaster={tagMaster}
+                                onUpdateTags={(id, tags) => {
+                                    tags.forEach((t) => addToTagMaster(t));
+                                    updateArchiveItem(id, { tags });
+                                }}
+                                onLogHistory={() => {}}
+                                allItems={state.items}
+                                onNavigateToBlock={() => {}}
+                            />
+                        ))
+                    )}
+                </div>
             )}
 
             {/* Quick Entry Bar — visible in canvas mode across all levels */}
-            {viewMode === 'canvas' && (
+            {(viewMode === 'canvas' || viewMode === 'inbox') && (
                 <QuickEntryBar
                     onSave={handleQuickSave}
                     onAddToSubCanvas={handleAddToSubCanvas}
@@ -579,6 +799,9 @@ export const Canvas: React.FC = () => {
                     tagMaster={tagMaster}
                     onAddToTagMaster={addToTagMaster}
                     allItems={state.items}
+                    hasInbox={true}
+                    ageFilter={ageFilter}
+                    onAgeFilterChange={setAgeFilter}
                 />
             )}
 
@@ -657,6 +880,44 @@ export const Canvas: React.FC = () => {
                     ))}
                     <span className="ml-1 text-[10px] text-white/25 font-medium pl-1 border-l border-white/10">
                         Esc to exit
+                    </span>
+                </div>
+            )}
+
+            {/* Inbox header — visible when in inbox view */}
+            {viewMode === 'inbox' && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-xl shadow-xl z-[99] glass border border-white/15 animate-in slide-in-from-top-4">
+                    <Inbox size={14} className="text-sky-400 shrink-0" />
+                    <span className="text-xs font-bold text-sky-300 uppercase tracking-wider">Inbox</span>
+                    {inboxItemCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-sky-500/20 text-sky-400 border border-sky-500/20">
+                            {inboxItemCount}
+                        </span>
+                    )}
+                    {resurfaceCount > 0 && (
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/20 animate-pulse">
+                            <RotateCcw size={8} />
+                            {resurfaceCount}
+                        </span>
+                    )}
+                    <span className="ml-1 text-[10px] text-white/20 pl-1 border-l border-white/10">
+                        Eject to board · Esc to exit
+                    </span>
+                </div>
+            )}
+
+            {/* Archive header — visible when in archive view */}
+            {viewMode === 'archive' && (
+                <div className="fixed top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-xl shadow-xl z-[99] glass border border-white/15 animate-in slide-in-from-top-4">
+                    <Archive size={14} className="text-amber-400 shrink-0" />
+                    <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">Archives</span>
+                    {archiveItemCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/20">
+                            {archiveItemCount}
+                        </span>
+                    )}
+                    <span className="ml-1 text-[10px] text-white/20 pl-1 border-l border-white/10">
+                        Eject to board · Esc to exit
                     </span>
                 </div>
             )}
@@ -848,6 +1109,47 @@ export const Canvas: React.FC = () => {
                         </button>
                     </>
                 )}
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
+                <button
+                    onClick={() => setViewMode((v) => v === 'inbox' ? 'canvas' : 'inbox')}
+                    className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${viewMode === 'inbox' ? 'text-sky-400' : ''}`}
+                    title={`Inbox (${inboxItemCount} items${resurfaceCount > 0 ? `, ${resurfaceCount} resurfacing` : ''})`}
+                >
+                    <div className="relative">
+                        <Inbox size={20} className={`transition-colors ${viewMode === 'inbox' ? 'text-sky-400' : 'text-white/60 group-hover:text-sky-400'}`} />
+                        {inboxItemCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[8px] font-black bg-sky-500/80 text-sky-100">
+                                {inboxItemCount > 9 ? '9+' : inboxItemCount}
+                            </span>
+                        )}
+                        {resurfaceCount > 0 && (
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[8px] font-black bg-amber-500/80 text-amber-100 animate-pulse">
+                                {resurfaceCount > 9 ? '9+' : resurfaceCount}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Inbox</span>
+                </button>
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
+                <button
+                    onClick={() => setViewMode((v) => v === 'archive' ? 'canvas' : 'archive')}
+                    className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${viewMode === 'archive' ? 'text-amber-400' : ''}`}
+                    title={`Archives (${archiveItemCount} items)`}
+                >
+                    <div className="relative">
+                        <Archive size={20} className={`transition-colors ${viewMode === 'archive' ? 'text-amber-400' : 'text-white/60 group-hover:text-amber-400'}`} />
+                        {archiveItemCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[8px] font-black bg-amber-500/80 text-amber-100">
+                                {archiveItemCount > 9 ? '9+' : archiveItemCount}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Archive</span>
+                </button>
 
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
