@@ -79,16 +79,58 @@ function formatDuration(seconds: number): string {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function formatTimerElapsed(timer: CanvasTimer): string {
-    let seconds = timer.totalElapsed;
-    if (timer.isRunning) {
-        seconds += Math.floor((Date.now() - timer.startTime) / 1000);
-    }
+function formatSeconds(seconds: number): string {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
     if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function getTodayMidnight(): number {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+}
+
+/** Seconds elapsed today (completed sessions + live running if started today) */
+function getTodayElapsed(timer: CanvasTimer): number {
+    const midnight = getTodayMidnight();
+    let todaySecs = 0;
+    for (const s of timer.sessions ?? []) {
+        if (s.end !== undefined && s.start >= midnight) {
+            todaySecs += Math.floor((s.end - s.start) / 1000);
+        }
+    }
+    if (timer.isRunning && timer.startTime >= midnight) {
+        todaySecs += Math.floor((Date.now() - timer.startTime) / 1000);
+    }
+    return todaySecs;
+}
+
+/** Seconds elapsed before today (from totalElapsed, subtract today's completed sessions) */
+function getPastElapsed(timer: CanvasTimer): number {
+    const midnight = getTodayMidnight();
+    let todayCompleted = 0;
+    for (const s of timer.sessions ?? []) {
+        if (s.end !== undefined && s.start >= midnight) {
+            todayCompleted += Math.floor((s.end - s.start) / 1000);
+        }
+    }
+    // If running session started before today, that running time counts as past
+    let runningPast = 0;
+    if (timer.isRunning && timer.startTime < midnight) {
+        runningPast = Math.floor((Date.now() - timer.startTime) / 1000);
+    }
+    return timer.totalElapsed - todayCompleted + runningPast;
+}
+
+function formatTimerElapsed(timer: CanvasTimer): string {
+    let seconds = timer.totalElapsed;
+    if (timer.isRunning) {
+        seconds += Math.floor((Date.now() - timer.startTime) / 1000);
+    }
+    return formatSeconds(seconds);
 }
 
 
@@ -197,6 +239,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [tagInput, setTagInput] = useState('');
     const [showTagSuggestions, setShowTagSuggestions] = useState(false);
     const [showHistory, setShowHistory] = useState(false);
+    const [showManualLogs, setShowManualLogs] = useState(true);
     const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
     const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
     const blockPickerTriggerPos = useRef<number>(0); // cursor position where [[ was typed
@@ -210,6 +253,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const tagInputRef = useRef<HTMLInputElement>(null);
     const isDragging = useRef(false);
     const openingDatePicker = useRef(false);
+    const blockPickerOpenRef = useRef(false);
     const preEditContentRef = useRef<string>(item.content);
 
     const motionX = useMotionValue(item.x);
@@ -385,13 +429,15 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         blockPickerTriggerPos.current = cursor - 2;
                                         const ta = e.target;
                                         const rect = ta.getBoundingClientRect();
+                                        blockPickerOpenRef.current = true;
                                         setBlockPickerPos({ top: rect.bottom + 4, left: rect.left });
                                     } else if (blockPickerPos) {
+                                        blockPickerOpenRef.current = false;
                                         setBlockPickerPos(null);
                                     }
                                     onUpdate(item.id, { content: val });
                                 }}
-                                onBlur={() => { if (!openingDatePicker.current) setIsEditing(false); }}
+                                onBlur={() => { if (!openingDatePicker.current && !blockPickerOpenRef.current) setIsEditing(false); }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Escape' && blockPickerPos) {
                                         setBlockPickerPos(null);
@@ -442,9 +488,11 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                             ta.focus();
                                         });
                                     }
+                                    blockPickerOpenRef.current = false;
                                     setBlockPickerPos(null);
                                 }}
                                 onClose={() => {
+                                    blockPickerOpenRef.current = false;
                                     setBlockPickerPos(null);
                                     textareaRef.current?.focus();
                                 }}
@@ -1280,7 +1328,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     {/* Row 1: badge + controls */}
                     {item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0) && (
                         <div className="flex items-center gap-1">
-                            {/* Elapsed badge */}
+                            {/* Today elapsed badge (or total if no sessions data) */}
                             <div
                                 className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-bold tabular-nums ${
                                     item.timer.isRunning
@@ -1292,8 +1340,22 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 {item.timer.isRunning && (
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                                 )}
-                                {formatTimerElapsed(item.timer)}
+                                {item.timer.sessions
+                                    ? formatSeconds(getTodayElapsed(item.timer))
+                                    : formatTimerElapsed(item.timer)
+                                }
                             </div>
+                            {/* Past days total — shown only when sessions exist and there's past time */}
+                            {item.timer.sessions && getPastElapsed(item.timer) > 0 && (
+                                <div
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono tabular-nums bg-black/30 text-white/25 ring-1 ring-white/8"
+                                    style={{ backdropFilter: 'blur(8px)' }}
+                                    title="Total time from previous days"
+                                >
+                                    <span className="text-[8px] font-sans font-medium text-white/20 mr-0.5">prev</span>
+                                    {formatSeconds(getPastElapsed(item.timer))}
+                                </div>
+                            )}
 
                         {/* Controls + Log button — fade in on hover */}
                         <div className="flex items-center gap-0.5 opacity-0 group-hover/timer:opacity-100 transition-opacity duration-150">
@@ -1366,8 +1428,15 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             className="flex flex-col gap-0.5 px-1 pb-1"
                             style={{ backdropFilter: 'blur(8px)' }}
                         >
-                            <div className="px-1 py-1 text-[8px] font-bold uppercase tracking-wider text-white/20">Manual Logs</div>
-                            {item.actions!.map((action: CanvasAction) => (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowManualLogs((v) => !v); }}
+                                className="flex items-center gap-1 px-1 py-1 w-full text-left hover:bg-white/5 rounded transition-colors"
+                            >
+                                <span className="text-[8px] font-bold uppercase tracking-wider text-white/20">Manual Logs</span>
+                                <span className="text-[8px] text-white/15 ml-0.5">({item.actions!.length})</span>
+                                <ChevronDown size={8} className={`ml-auto text-white/20 transition-transform ${showManualLogs ? '' : '-rotate-90'}`} />
+                            </button>
+                            {showManualLogs && item.actions!.map((action: CanvasAction) => (
                                 <div
                                     key={action.id}
                                     className="group/action flex items-center gap-1.5 py-0.5"

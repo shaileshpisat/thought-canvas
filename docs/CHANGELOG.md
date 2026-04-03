@@ -9,6 +9,51 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.7.2
+
+### Timer — daily breakdown
+
+- When a timer is running or has sessions, the main badge now shows **today's elapsed time only**.
+- If there is time from previous days, a separate dimmer **"prev"** badge appears alongside it showing the cumulative past total.
+- Items with no sessions data (legacy timers) continue showing the original all-time total.
+
+## v1.7.1
+
+### Manual Logs
+
+- Added a **hide/show toggle** to the Manual Logs section on canvas items. Clicking the "Manual Logs" header collapses or expands the list. The count of logs is shown in the header at all times.
+
+---
+
+## v1.7.0
+
+### Archives
+
+- Added a dedicated **Archives** store — separate from the canvas board, stored as `state.archive`.
+- Every canvas item now has an **Archive** button in its action menu (amber colour). Clicking it removes the item from the board and places it in Archives.
+- Archives toolbar button (amber) shows a count badge and opens the **archive canvas view**.
+- Archive canvas view renders archived items as fully draggable cards, identical to the main board.
+- Items can be **ejected back to the root board** or **moved into any sub-canvas** directly from Archives.
+- All archive movements are recorded in the item's **audit history**: `"Archived"`, `"Restored from Archives"`, `"Restored from Archives to sub-canvas"`.
+
+### Inbox
+
+- Added a dedicated **Inbox** store — `state.inbox`, completely separate from the main canvas board. No sub-canvas card is shown on the board.
+- All notes captured via the **Quick Entry Bar** (without a `>>` routing prefix) go directly to Inbox.
+- Quick Entry Bar shows a sky-blue **Inbox** badge as the default destination indicator.
+- Inbox toolbar button shows total item count (sky-blue badge) and a pulsing amber **re-surface** count badge.
+- Clicking the Inbox button switches to the **inbox canvas view** — fully draggable cards, not a list.
+- **Re-surface logic**: an inbox item resurfaces (amber badge) on day 0 (creation), day 1 (next day), and every 7 days thereafter until moved out.
+- Items can be **ejected to the root board** or **moved into any sub-canvas** from the inbox view.
+- Inbox items are correctly placed using `findEmptyLocation` — no longer stacked at the top-left corner.
+- All inbox movements are recorded in audit history: `"Sent to Inbox"`, `"Moved from Inbox to board"`, `"Moved from Inbox to sub-canvas"`.
+- Data migration: existing `type: 'canvas'` Inbox items are automatically moved to `state.inbox` on first load.
+
+### New fields
+
+- `CanvasItem.createdAt` — unix ms timestamp auto-set on every new item, used by re-surface logic.
+- `CanvasState.inbox` and `CanvasState.archive` — dedicated arrays in persisted state.
+
 ## v1.5.0
 
 ### Week Board — Calendar View Redesign
