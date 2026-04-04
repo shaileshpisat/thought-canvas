@@ -20,6 +20,16 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.8.1
+
+### Wallet Accounts for Financials
+
+- Financial entries now include a **Wallet** dropdown to assign a source/destination account.
+- Wallet master is managed in **Settings → Wallet Accounts**: add, rename, change account type, or remove wallets.
+- Default accounts pre-loaded: ICICI CC, AXIS CC, IndusInd CC, KMB, HUF, IDFC, DBS, ICICI, Cash.
+- Account types: Savings, Current, Credit Card, Debit Card.
+- Selected wallet shown as a badge on each financial entry in the block panel.
+
 ## v1.8.0
 
 ### Financials on Blocks

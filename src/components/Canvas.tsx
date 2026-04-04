@@ -29,6 +29,7 @@ import {
     Inbox,
     RotateCcw,
     Archive,
+    IndianRupee,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -44,7 +45,7 @@ import { CHANGELOG } from '@/data/changelog';
 import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
 import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
 import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
-import { CanvasItem } from '@/types/canvas';
+import { CanvasItem, WalletAccount, WalletAccountType } from '@/types/canvas';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { useImageStorageTracker } from '@/hooks/useImageStorageTracker';
 import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
@@ -93,10 +94,12 @@ export const Canvas: React.FC = () => {
         removeFromArchive,
         updateArchiveItem,
         moveFromArchiveToCanvas,
+        updateWallets,
     } = useCanvas();
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
+    const [showWalletMaster, setShowWalletMaster] = React.useState(false);
     const [showProfileMenu, setShowProfileMenu] = React.useState(false);
     const [highlightedItemId, setHighlightedItemId] = React.useState<string | null>(null);
     const [recurringDays, setRecurringDays] = React.useState<number>(() => {
@@ -678,6 +681,7 @@ export const Canvas: React.FC = () => {
                                 updateItem(id, { tags });
                             }}
                             onLogHistory={handleLogHistory}
+                            walletMaster={state.wallets ?? []}
                             allItems={state.items.map(i =>
                                 i.type === 'canvas' && i.content === 'Inbox'
                                     ? { ...i, children: [] }
@@ -764,6 +768,7 @@ export const Canvas: React.FC = () => {
                                     updateInboxItem(id, { tags });
                                 }}
                                 onLogHistory={() => {}}
+                                walletMaster={state.wallets ?? []}
                                 allItems={state.items}
                                 onNavigateToBlock={() => {}}
                             />
@@ -812,6 +817,7 @@ export const Canvas: React.FC = () => {
                                     updateArchiveItem(id, { tags });
                                 }}
                                 onLogHistory={() => {}}
+                                walletMaster={state.wallets ?? []}
                                 allItems={state.items}
                                 onNavigateToBlock={() => {}}
                             />
@@ -1499,6 +1505,19 @@ export const Canvas: React.FC = () => {
                             </div>
 
                             <div className="h-px bg-white/10 my-2" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Financials</p>
+                            <button
+                                onClick={() => { setShowWalletMaster(true); setShowSettings(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                            >
+                                <IndianRupee size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Wallet Accounts</div>
+                                    <div className="text-[10px] text-white/30">Manage wallets for financial entries</div>
+                                </div>
+                            </button>
+
+                            <div className="h-px bg-white/10 my-2" />
                             <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Info</p>
 
                             <button
@@ -1511,6 +1530,63 @@ export const Canvas: React.FC = () => {
                                     <div className="text-[10px] text-white/30">View localStorage usage</div>
                                 </div>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Wallet Master Modal */}
+            {showWalletMaster && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center" onClick={() => setShowWalletMaster(false)}>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div
+                        className="relative w-[480px] max-h-[80vh] flex flex-col rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                            <div className="flex items-center gap-2">
+                                <IndianRupee size={16} className="text-emerald-400" />
+                                <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">Wallet Accounts</h2>
+                            </div>
+                            <button onClick={() => setShowWalletMaster(false)} className="w-6 h-6 flex items-center justify-center rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors text-lg leading-none">×</button>
+                        </div>
+
+                        {/* List */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3 flex flex-col gap-1">
+                            {(state.wallets ?? []).map((wallet) => (
+                                <div key={wallet.id} className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/5 group transition-colors">
+                                    <input
+                                        type="text"
+                                        value={wallet.name}
+                                        onChange={e => updateWallets((state.wallets ?? []).map(w => w.id === wallet.id ? { ...w, name: e.target.value } : w))}
+                                        className="flex-1 bg-transparent text-sm font-semibold text-white/80 focus:outline-none focus:text-white min-w-0"
+                                    />
+                                    <select
+                                        value={wallet.accountType}
+                                        onChange={e => updateWallets((state.wallets ?? []).map(w => w.id === wallet.id ? { ...w, accountType: e.target.value as WalletAccountType } : w))}
+                                        className="text-[11px] px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-white/50 focus:outline-none focus:border-emerald-500/50 focus:text-white/80 transition-all"
+                                    >
+                                        <option value="Savings">Savings</option>
+                                        <option value="Current">Current</option>
+                                        <option value="Credit Card">Credit Card</option>
+                                        <option value="Debit Card">Debit Card</option>
+                                    </select>
+                                    <button
+                                        onClick={() => updateWallets((state.wallets ?? []).filter(w => w.id !== wallet.id))}
+                                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all"
+                                        title="Remove"
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add new */}
+                        <div className="px-4 py-3 border-t border-white/8">
+                            <WalletAddForm onAdd={wallet => updateWallets([...(state.wallets ?? []), wallet])} />
                         </div>
                     </div>
                 </div>
@@ -1602,3 +1678,44 @@ export const Canvas: React.FC = () => {
         </div>
     );
 };
+
+function WalletAddForm({ onAdd }: { onAdd: (w: WalletAccount) => void }) {
+    const [name, setName] = React.useState('');
+    const [accountType, setAccountType] = React.useState<WalletAccountType>('Savings');
+    return (
+        <form
+            onSubmit={e => {
+                e.preventDefault();
+                if (!name.trim()) return;
+                onAdd({ id: crypto.randomUUID(), name: name.trim(), accountType });
+                setName('');
+                setAccountType('Savings');
+            }}
+            className="flex items-center gap-2"
+        >
+            <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Account name…"
+                className="flex-1 text-sm px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:outline-none focus:border-emerald-500/50 transition-all"
+            />
+            <select
+                value={accountType}
+                onChange={e => setAccountType(e.target.value as WalletAccountType)}
+                className="text-[11px] px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/50 focus:outline-none focus:border-emerald-500/50 transition-all"
+            >
+                <option value="Savings">Savings</option>
+                <option value="Current">Current</option>
+                <option value="Credit Card">Credit Card</option>
+                <option value="Debit Card">Debit Card</option>
+            </select>
+            <button
+                type="submit"
+                className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30 hover:bg-emerald-500/30 transition-colors shrink-0"
+            >
+                Add
+            </button>
+        </form>
+    );
+}

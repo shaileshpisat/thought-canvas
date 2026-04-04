@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CanvasItem, CanvasState, CanvasHistoryEntry } from '../types/canvas';
+import { CanvasItem, CanvasState, CanvasHistoryEntry, WalletAccount } from '../types/canvas';
 import {
   isBase64DataUrl,
   isIdbSentinel,
@@ -28,6 +28,17 @@ const initialState: CanvasState = {
   archive: [],
   backgroundColor: '#0f172a',
   zoom: 1,
+  wallets: [
+    { id: 'icici-cc',    name: 'ICICI CC',     accountType: 'Credit Card' },
+    { id: 'axis-cc',     name: 'AXIS CC',      accountType: 'Credit Card' },
+    { id: 'indusind-cc', name: 'IndusInd CC',  accountType: 'Credit Card' },
+    { id: 'kmb',         name: 'KMB',          accountType: 'Savings' },
+    { id: 'huf',         name: 'HUF',          accountType: 'Current' },
+    { id: 'idfc',        name: 'IDFC',         accountType: 'Savings' },
+    { id: 'dbs',         name: 'DBS',          accountType: 'Savings' },
+    { id: 'icici',       name: 'ICICI',        accountType: 'Savings' },
+    { id: 'cash',        name: 'Cash',         accountType: 'Debit Card' },
+  ] as WalletAccount[],
 };
 
 // Traverse nested canvas items to get items at a given path
@@ -87,6 +98,9 @@ export const useCanvas = () => {
           }
           if (!Array.isArray(parsed.archive)) {
             parsed.archive = [];
+          }
+          if (!Array.isArray(parsed.wallets)) {
+            parsed.wallets = initialState.wallets;
           }
           setState(parsed);
         } catch (e) {
@@ -423,6 +437,10 @@ export const useCanvas = () => {
     }));
   }, []);
 
+  const updateWallets = useCallback((wallets: WalletAccount[]) => {
+    setState(prev => ({ ...prev, wallets }));
+  }, []);
+
   const moveFromArchiveToCanvas = useCallback(
     (item: CanvasItem, toPath: string[], newX?: number, newY?: number) => {
       setState((prev) => {
@@ -464,5 +482,6 @@ export const useCanvas = () => {
     removeFromArchive,
     updateArchiveItem,
     moveFromArchiveToCanvas,
+    updateWallets,
   };
 };

@@ -26,11 +26,20 @@ export interface CanvasHistoryEntry {
 
 export type FinancialType = 'income' | 'expense' | 'investment' | 'redemption' | 'inflow' | 'outflow';
 
+export type WalletAccountType = 'Savings' | 'Current' | 'Credit Card' | 'Debit Card';
+
+export interface WalletAccount {
+  id: string;
+  name: string;
+  accountType: WalletAccountType;
+}
+
 export interface FinancialEntry {
   id: string;
   amount: number;
   description?: string;
   type: FinancialType;
+  wallet?: string; // WalletAccount id
   timestamp: number;
 }
 
@@ -73,4 +82,5 @@ export interface CanvasState {
   archive: CanvasItem[];
   backgroundColor: string;
   zoom: number;
+  wallets: WalletAccount[];
 }

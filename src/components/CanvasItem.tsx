@@ -64,6 +64,7 @@ interface Props {
     onLogHistory?: (id: string, type: CanvasHistoryEntry['type'], action: string, snapshot?: string) => void;
     allItems?: ICanvasItem[];
     onNavigateToBlock?: (path: string[], itemId: string) => void;
+    walletMaster?: import('@/types/canvas').WalletAccount[];
 }
 
 import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
@@ -236,7 +237,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [] }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -261,6 +262,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [finAmount, setFinAmount] = useState('');
     const [finDesc, setFinDesc] = useState('');
     const [finType, setFinType] = useState<FinancialType>('expense');
+    const [finWallet, setFinWallet] = useState('');
     const [showManualLogs, setShowManualLogs] = useState(true);
     const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
     const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
@@ -714,7 +716,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 // Show a zoomed viewport into the top-left portion of the canvas
                                 const PAD = 16;
                                 const FOOTER_H = 44;
-                                const TOP_MARGIN = 20;
+                                const TOP_MARGIN = 4;
                                 const previewW = currentWidth;
                                 const previewH = currentHeight - FOOTER_H;
                                 // Find top-left origin across all children
@@ -1701,6 +1703,11 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                             {isPos ? '+' : '-'}{formatRupees(entry.amount)}
                                         </span>
                                         <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 text-white/30 uppercase tracking-wide shrink-0">{entry.type}</span>
+                                        {entry.wallet && walletMaster.find(w => w.id === entry.wallet) && (
+                                            <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/8 text-emerald-400/50 uppercase tracking-wide shrink-0">
+                                                {walletMaster.find(w => w.id === entry.wallet)!.name}
+                                            </span>
+                                        )}
                                         {entry.description && <span className="text-[9px] text-white/45 truncate flex-1">{entry.description}</span>}
                                         <button
                                             onClick={e => { e.stopPropagation(); onUpdate(item.id, { financials: (item.financials ?? []).filter(f => f.id !== entry.id) }); }}
@@ -1720,11 +1727,12 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         e.preventDefault();
                                         const amt = parseFloat(finAmount);
                                         if (!isNaN(amt) && amt > 0) {
-                                            const entry: FinancialEntry = { id: Date.now().toString(), amount: amt, description: finDesc.trim() || undefined, type: finType, timestamp: Date.now() };
+                                            const entry: FinancialEntry = { id: Date.now().toString(), amount: amt, description: finDesc.trim() || undefined, type: finType, wallet: finWallet || undefined, timestamp: Date.now() };
                                             onUpdate(item.id, { financials: [...(item.financials ?? []), entry] });
                                             setFinAmount('');
                                             setFinDesc('');
                                             setFinType('expense');
+                                            setFinWallet('');
                                             setIsAddingFinancial(false);
                                         }
                                     }}
@@ -1756,6 +1764,17 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                             <option value="redemption">Redemption</option>
                                             <option value="inflow">Inflow</option>
                                             <option value="outflow">Outflow</option>
+                                        </select>
+                                        <select
+                                            value={finWallet}
+                                            onChange={e => setFinWallet(e.target.value)}
+                                            className="text-[10px] px-1.5 py-1 rounded-lg bg-black/50 ring-1 ring-white/15 text-white/60 focus:outline-none focus:ring-emerald-500/40 shrink-0"
+                                            style={{ backdropFilter: 'blur(8px)' }}
+                                        >
+                                            <option value="">Wallet</option>
+                                            {walletMaster.map(w => (
+                                                <option key={w.id} value={w.id}>{w.name}</option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="flex gap-1">
