@@ -30,6 +30,7 @@ import {
     RotateCcw,
     Archive,
     IndianRupee,
+    Trash2,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -50,6 +51,8 @@ import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { useImageStorageTracker } from '@/hooks/useImageStorageTracker';
 import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
 import type { CanvasItem as ICanvasItem } from '@/types/canvas';
+import { useRecycleBin } from '@/hooks/useRecycleBin';
+import { RecycleBin } from './RecycleBin';
 
 function canvasTotalNet(items: CanvasItem[]): number {
     return flattenItems(items).reduce((sum, item) => {
@@ -96,6 +99,8 @@ export const Canvas: React.FC = () => {
         moveFromArchiveToCanvas,
         updateWallets,
     } = useCanvas();
+    const recycleBin = useRecycleBin();
+    const [showRecycleBin, setShowRecycleBin] = React.useState(false);
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
@@ -299,8 +304,15 @@ export const Canvas: React.FC = () => {
         addItemAtPath(navigationPathRef.current, item);
     const updateItem = (id: string, updates: Partial<CanvasItem>) =>
         updateItemAtPath(navigationPathRef.current, id, updates);
-    const removeItem = (id: string) =>
+    const removeItem = (id: string) => {
+        // Move the item to the recycle bin before removing from canvas
+        const currentItems = getItemsAtPath(state.items, navigationPathRef.current);
+        const dying = currentItems.find((i) => i.id === id);
+        if (dying) {
+            recycleBin.addItem(dying, state.backgroundColor);
+        }
         removeItemAtPath(navigationPathRef.current, id);
+    };
     const moveItem = (id: string, x: number, y: number) =>
         moveItemAtPath(navigationPathRef.current, id, x, y);
 
@@ -452,6 +464,14 @@ export const Canvas: React.FC = () => {
         const { x, y } = findEmptyLocation(state.archive ?? [], item.width ?? 280, item.height ?? 140);
         removeItemAtPath(navigationPathRef.current, item.id);
         addToArchive({ ...item, x, y });
+    };
+
+    const handleRecycleBinRestore = (id: string) => {
+        const restored = recycleBin.restoreItem(id);
+        if (!restored) return;
+        // Place it on the root canvas (path = []) at its original position
+        const { deletedAt: _deletedAt, originalCanvasColor: _color, ...originalItem } = restored;
+        addItemAtPath([], originalItem);
     };
 
     const handleToggleTimer = (id: string) => {
@@ -1195,6 +1215,22 @@ export const Canvas: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Archive</span>
                 </button>
 
+                <button
+                    onClick={() => setShowRecycleBin(true)}
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                    title={`Recycle Bin (${recycleBin.count} item${recycleBin.count !== 1 ? 's' : ''})`}
+                >
+                    <div className="relative">
+                        <Trash2 size={20} className="text-white/60 group-hover:text-red-400 transition-colors" />
+                        {recycleBin.count > 0 && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full text-[8px] font-black bg-red-500/80 text-red-100">
+                                {recycleBin.count > 9 ? '9+' : recycleBin.count}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Trash</span>
+                </button>
+
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
@@ -1429,6 +1465,18 @@ export const Canvas: React.FC = () => {
 
             <StorageWarningBanner onOpenStats={() => setShowStats(true)} />
             {showStats && <StorageStats onClose={() => setShowStats(false)} onClearCanvas={clearCanvas} />}
+
+            {/* Recycle Bin Modal */}
+            {showRecycleBin && (
+                <RecycleBin
+                    items={recycleBin.items}
+                    onRestore={handleRecycleBinRestore}
+                    onDeletePermanently={(id) => recycleBin.deletePermanently(id)}
+                    onEmptyBin={recycleBin.emptyBin}
+                    onClose={() => setShowRecycleBin(false)}
+                    daysRemaining={recycleBin.daysRemaining}
+                />
+            )}
 
             {/* Settings Popup */}
             {showSettings && (

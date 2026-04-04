@@ -84,3 +84,8 @@ export interface CanvasState {
   zoom: number;
   wallets: WalletAccount[];
 }
+
+export interface RecycleBinItem extends CanvasItem {
+  deletedAt: string;           // ISO timestamp
+  originalCanvasColor?: string; // canvas backgroundColor at time of deletion
+}

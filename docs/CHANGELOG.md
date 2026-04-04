@@ -9,6 +9,42 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.9.0
+
+### Recycle Bin
+- Deleted blocks are now moved to a Recycle Bin instead of being permanently removed.
+- Deleted items are retained for 45 days before being automatically purged.
+- Access the Recycle Bin via the trash icon in the bottom toolbar — shows a badge count when items are present.
+- Restore any deleted block back to its original canvas position with one click.
+- Permanently delete individual items or empty the entire bin at once.
+
+---
+
+## v1.8.4
+
+### Toolbar Cleanup
+- Removed the Edit button from text block toolbars — clicking the block content already enters edit mode.
+
+---
+
+## v1.8.3
+
+### Date/Time Toolbar Cleanup
+- Removed the standalone "Remove date" and "Remove time" X buttons from the toolbar.
+- The date picker's native Clear option handles date removal.
+- The time clock button now opens a small dropdown (matching duration/recurring style) with "Change" and "Clear" options when a time is already set.
+
+---
+
+## v1.8.2
+
+### Block Toolbar Declutter
+- Timer and Financials buttons removed from the top toolbar.
+- Timer button now lives at the bottom-left of the block: appears on hover when no timer exists, always visible once recording has started.
+- Financials button now lives at the bottom-right, next to the financial aggregate badge: appears on hover when no entries exist, always visible when financials are recorded.
+
+---
+
 ## v1.8.1
 
 ### Image Caption

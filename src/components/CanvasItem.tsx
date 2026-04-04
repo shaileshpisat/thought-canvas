@@ -249,6 +249,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [showPriority, setShowPriority] = useState(false);
     const [showDuration, setShowDuration] = useState(false);
     const [showRecurring, setShowRecurring] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
     const [isLogging, setIsLogging] = useState(false);
@@ -886,22 +887,13 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {item.type === 'text' && (
-                            <>
-                                <button
-                                    onClick={() => setIsEditing(!isEditing)}
-                                    className={`p-1.5 transition-colors ${isEditing ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
-                                    title="Edit"
-                                >
-                                    <Edit3 size={16} />
-                                </button>
-                                <button
-                                    onClick={() => { setIsEditing(false); setIsExpanded(true); }}
-                                    className={`p-1.5 transition-colors ${isExpanded ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
-                                    title="Expanded view"
-                                >
-                                    <Maximize2 size={16} />
-                                </button>
-                            </>
+                            <button
+                                onClick={() => { setIsEditing(false); setIsExpanded(true); }}
+                                className={`p-1.5 transition-colors ${isExpanded ? 'text-sky-400 hover:text-sky-300' : 'text-white/40 hover:text-sky-400'}`}
+                                title="Expanded view"
+                            >
+                                <Maximize2 size={16} />
+                            </button>
                         )}
 
                         {item.type === 'canvas' && (
@@ -963,22 +955,39 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         </button>
                         {item.date && (
                             <>
-                                <button
-                                    onClick={handleTimeClick}
-                                    className={`p-1.5 transition-colors ${item.time ? 'text-sky-400 hover:text-sky-300' : 'text-white/25 hover:text-sky-400'}`}
-                                    title={item.time ? `Time: ${item.time} — click to change` : 'Add time'}
-                                >
-                                    <Clock size={13} />
-                                </button>
+                                {/* Time picker */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => { if (item.time) { setShowTimePicker(v => !v); } else { handleTimeClick(); } }}
+                                        className={`p-1.5 transition-colors ${item.time ? 'text-sky-400 hover:text-sky-300' : 'text-white/25 hover:text-sky-400'}`}
+                                        title={item.time ? `Time: ${item.time} — click to change` : 'Add time'}
+                                    >
+                                        <Clock size={13} />
+                                    </button>
+                                    {showTimePicker && item.time && (
+                                        <div
+                                            className="absolute top-full left-0 mt-1 z-[200] min-w-[110px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                            style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                                        >
+                                            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Time</div>
+                                            <button
+                                                onClick={() => { setShowTimePicker(false); handleTimeClick(); }}
+                                                className="w-full text-left px-3 py-2 text-xs text-white/60 hover:text-white hover:bg-white/8 transition-colors"
+                                            >
+                                                Change
+                                            </button>
+                                            <div className="border-t border-white/8 mx-2" />
+                                            <button
+                                                onClick={() => { onUpdate(item.id, { time: undefined, duration: undefined, recurring: undefined }); setShowTimePicker(false); }}
+                                                className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 {item.time && (
                                     <>
-                                        <button
-                                            onClick={() => onUpdate(item.id, { time: undefined, duration: undefined, recurring: undefined })}
-                                            className="p-1.5 text-white/20 hover:text-red-400 transition-colors -ml-1"
-                                            title="Remove time"
-                                        >
-                                            <X size={11} />
-                                        </button>
                                         {/* Duration picker */}
                                         <div className="relative">
                                             <button
@@ -1060,13 +1069,6 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         )}
                                     </>
                                 )}
-                                <button
-                                    onClick={() => onUpdate(item.id, { date: undefined, time: undefined, duration: undefined, recurring: undefined })}
-                                    className="p-1.5 text-white/25 hover:text-red-400 transition-colors"
-                                    title="Remove date"
-                                >
-                                    <X size={13} />
-                                </button>
                             </>
                         )}
                         <input
@@ -1170,23 +1172,6 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </div>
                         )}
 
-                        {/* Timer button — non-canvas blocks only */}
-                        {item.type !== 'canvas' && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onToggleTimer?.(item.id); }}
-                                className={`p-1.5 transition-colors ${
-                                    item.timer?.isRunning
-                                        ? 'text-emerald-400 hover:text-emerald-300'
-                                        : item.timer && item.timer.totalElapsed > 0
-                                        ? 'text-white/50 hover:text-emerald-400'
-                                        : 'text-white/40 hover:text-emerald-400'
-                                }`}
-                                title={item.timer?.isRunning ? 'Pause timer' : item.timer && item.timer.totalElapsed > 0 ? 'Resume timer' : 'Start timer'}
-                            >
-                                {item.timer?.isRunning ? <Pause size={16} /> : <Play size={16} />}
-                            </button>
-                        )}
-
                         {/* History audit log button */}
                         <button
                             onClick={() => setShowHistory(!showHistory)}
@@ -1195,17 +1180,6 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         >
                             <History size={16} />
                         </button>
-
-                        {/* Financials button — non-canvas blocks only */}
-                        {item.type !== 'canvas' && (
-                            <button
-                                onClick={() => setShowFinancials(!showFinancials)}
-                                className={`p-1.5 transition-colors ${showFinancials ? 'text-emerald-400 hover:text-emerald-300' : item.financials?.length ? 'text-emerald-500/70 hover:text-emerald-400' : 'text-white/40 hover:text-emerald-400'}`}
-                                title="Financials"
-                            >
-                                <IndianRupee size={15} />
-                            </button>
-                        )}
 
                         <div className="w-[1px] h-4 bg-white/10" />
 
@@ -1497,15 +1471,27 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
             </div>
 
             {/* History & Timer section — floats below the card */}
-            {(showHistory || showFinancials || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0))) && (
+            {(showHistory || showFinancials || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (isHovered && item.type !== 'canvas')) && (
                 <div
                     className="group/timer absolute left-2 right-2 z-30 flex flex-col gap-1"
                     style={{ top: currentHeight + 6 }}
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     {/* Row 1: timer badges + financial aggregate */}
-                    {((item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0)) && (
+                    {((item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (isHovered && item.type !== 'canvas')) && (
                         <div className="flex items-center gap-1">
+                            {/* Start timer button — shown on hover when no timer data */}
+                            {item.type !== 'canvas' && !(item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onToggleTimer?.(item.id); }}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] bg-black/40 ring-1 ring-white/10 text-white/30 hover:text-emerald-400 hover:ring-emerald-500/30 opacity-0 group-hover:opacity-100 transition-all"
+                                    style={{ backdropFilter: 'blur(8px)' }}
+                                    title="Start timer"
+                                >
+                                    <Play size={10} />
+                                    <span>timer</span>
+                                </button>
+                            )}
                             {item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0) && (<>
                                 {/* Today elapsed badge */}
                                 <div
@@ -1567,24 +1553,43 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 </div>
                             </>)}
 
-                            {/* Financial aggregate badge — right side */}
-                            {(() => {
-                                const net = item.type === 'canvas' ? canvasFinancialNet(item) : financialNet(item.financials ?? []);
-                                if (net === 0) return null;
-                                const isPositive = net >= 0;
-                                return (
-                                    <div
-                                        className={`ml-auto px-2 py-1 rounded-lg text-[10px] font-bold tabular-nums tracking-wide pointer-events-none select-none ${
-                                            isPositive
-                                                ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25'
-                                                : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25'
+                            {/* Financial aggregate badge + financials button — right side */}
+                            <div className="ml-auto flex items-center gap-1">
+                                {(() => {
+                                    const net = item.type === 'canvas' ? canvasFinancialNet(item) : financialNet(item.financials ?? []);
+                                    if (net === 0) return null;
+                                    const isPositive = net >= 0;
+                                    return (
+                                        <div
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold tabular-nums tracking-wide pointer-events-none select-none ${
+                                                isPositive
+                                                    ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25'
+                                                    : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25'
+                                            }`}
+                                            style={{ backdropFilter: 'blur(8px)' }}
+                                        >
+                                            {isPositive ? '+' : '-'}{formatRupees(net)}
+                                        </div>
+                                    );
+                                })()}
+                                {/* Financials button — non-canvas blocks only */}
+                                {item.type !== 'canvas' && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowFinancials(!showFinancials); }}
+                                        className={`p-1 rounded-lg ring-1 transition-all ${
+                                            showFinancials
+                                                ? 'bg-emerald-500/20 ring-emerald-500/30 text-emerald-400'
+                                                : item.financials?.length
+                                                ? 'bg-black/40 ring-white/10 text-emerald-500/60 hover:text-emerald-400'
+                                                : 'bg-black/40 ring-white/10 text-white/30 hover:text-emerald-400 opacity-0 group-hover:opacity-100'
                                         }`}
                                         style={{ backdropFilter: 'blur(8px)' }}
+                                        title="Financials"
                                     >
-                                        {isPositive ? '+' : '-'}{formatRupees(net)}
-                                    </div>
-                                );
-                            })()}
+                                        <IndianRupee size={10} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -1694,31 +1699,50 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 </button>
                             </div>
 
-                            {/* Existing entries */}
-                            {(item.financials ?? []).map((entry) => {
-                                const isPos = entry.type === 'income' || entry.type === 'inflow' || entry.type === 'redemption';
-                                return (
-                                    <div key={entry.id} className="flex items-center gap-1.5 py-0.5 pl-1 group/fin">
-                                        <span className={`text-[9px] font-bold tabular-nums shrink-0 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {isPos ? '+' : '-'}{formatRupees(entry.amount)}
-                                        </span>
-                                        <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 text-white/30 uppercase tracking-wide shrink-0">{entry.type}</span>
-                                        {entry.wallet && walletMaster.find(w => w.id === entry.wallet) && (
-                                            <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/8 text-emerald-400/50 uppercase tracking-wide shrink-0">
-                                                {walletMaster.find(w => w.id === entry.wallet)!.name}
-                                            </span>
-                                        )}
-                                        {entry.description && <span className="text-[9px] text-white/45 truncate flex-1">{entry.description}</span>}
-                                        <button
-                                            onClick={e => { e.stopPropagation(); onUpdate(item.id, { financials: (item.financials ?? []).filter(f => f.id !== entry.id) }); }}
-                                            className="opacity-0 group-hover/fin:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all ml-auto"
-                                            title="Remove"
-                                        >
-                                            <X size={9} className="text-white/30 hover:text-red-400" />
-                                        </button>
+                            {/* Existing entries — grouped by date descending, time shown per entry */}
+                            {(() => {
+                                const entries = [...(item.financials ?? [])].sort((a, b) => b.timestamp - a.timestamp);
+                                const grouped = new Map<string, typeof entries>();
+                                for (const e of entries) {
+                                    const key = new Date(e.timestamp).toDateString();
+                                    if (!grouped.has(key)) grouped.set(key, []);
+                                    grouped.get(key)!.push(e);
+                                }
+                                const todayStr = new Date().toDateString();
+                                return Array.from(grouped.entries()).map(([dateStr, dayEntries]) => (
+                                    <div key={dateStr} className="flex flex-col gap-0.5">
+                                        <div className="px-1 pt-1 pb-0.5 text-[8px] font-semibold text-white/25 tracking-wide">
+                                            {dateStr === todayStr ? 'Today' : new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </div>
+                                        {dayEntries.map((entry) => {
+                                            const isPos = entry.type === 'income' || entry.type === 'inflow' || entry.type === 'redemption';
+                                            const timeLabel = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                                            return (
+                                                <div key={entry.id} className="flex items-center gap-1.5 py-0.5 pl-1 group/fin">
+                                                    <span className="font-mono text-[7px] text-white/20 shrink-0 tabular-nums">{timeLabel}</span>
+                                                    <span className={`text-[9px] font-bold tabular-nums shrink-0 ${isPos ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {isPos ? '+' : '-'}{formatRupees(entry.amount)}
+                                                    </span>
+                                                    <span className="text-[8px] px-1 py-0.5 rounded bg-white/5 text-white/30 uppercase tracking-wide shrink-0">{entry.type}</span>
+                                                    {entry.wallet && walletMaster.find(w => w.id === entry.wallet) && (
+                                                        <span className="text-[8px] px-1 py-0.5 rounded bg-emerald-500/8 text-emerald-400/50 uppercase tracking-wide shrink-0">
+                                                            {walletMaster.find(w => w.id === entry.wallet)!.name}
+                                                        </span>
+                                                    )}
+                                                    {entry.description && <span className="text-[9px] text-white/45 truncate flex-1">{entry.description}</span>}
+                                                    <button
+                                                        onClick={e => { e.stopPropagation(); onUpdate(item.id, { financials: (item.financials ?? []).filter(f => f.id !== entry.id) }); }}
+                                                        className="opacity-0 group-hover/fin:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all ml-auto"
+                                                        title="Remove"
+                                                    >
+                                                        <X size={9} className="text-white/30 hover:text-red-400" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                );
-                            })}
+                                ));
+                            })()}
 
                             {/* Add entry form */}
                             {isAddingFinancial ? (
