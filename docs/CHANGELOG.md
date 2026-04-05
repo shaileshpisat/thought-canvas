@@ -9,6 +9,13 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.9.1
+
+### Bug Fixes
+- Fixed single linefeeds typed in text edit mode being ignored in the rendered Markdown view.
+
+---
+
 ## v1.9.0
 
 ### Recycle Bin

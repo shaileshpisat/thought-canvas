@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v1.9.1',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          'Fixed single linefeeds typed in text edit mode being ignored in the rendered Markdown view.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v1.9.0',
     sections: [
       {

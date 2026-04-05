@@ -151,6 +151,12 @@ const MD_COMPONENTS_BASE = {
     ),
 };
 
+function normalizeMarkdownNewlines(content: string): string {
+    // Convert single newlines to hard line breaks (two trailing spaces + newline)
+    // while preserving blank lines (paragraph breaks)
+    return content.replace(/([^\n])\n(?!\n)/g, '$1  \n');
+}
+
 function makeMdComponents(onNavigateToBlock?: (path: string[], itemId: string) => void) {
     return {
         ...MD_COMPONENTS_BASE,
@@ -488,7 +494,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             >
                                 {item.content
                                     ? <div className="text-sm max-w-none text-white/90">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{normalizeMarkdownNewlines(item.content)}</ReactMarkdown>
                                       </div>
                                     : <span className="text-white/30 italic">Click to edit...</span>
                                 }
@@ -540,7 +546,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                 </div>
                                 <div className="flex-1 p-4 overflow-y-auto text-sm text-white/90">
                                     {item.content
-                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
+                                        ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{normalizeMarkdownNewlines(item.content)}</ReactMarkdown>
                                         : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
                                     }
                                 </div>
@@ -608,7 +614,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         <div className="w-px bg-white/10 shrink-0" />
                                         <div className="w-1/2 h-full p-5 overflow-y-auto text-sm text-white/90">
                                             {item.content
-                                                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{item.content}</ReactMarkdown>
+                                                ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={makeMdComponents(onNavigateToBlock)}>{normalizeMarkdownNewlines(item.content)}</ReactMarkdown>
                                                 : <span className="text-white/20 italic text-xs">Preview will appear here...</span>
                                             }
                                         </div>
