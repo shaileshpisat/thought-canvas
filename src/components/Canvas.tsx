@@ -12,6 +12,7 @@ import {
     Layers,
     Home,
     ChevronRight,
+    Network,
     Download,
     Upload,
     CalendarDays,
@@ -53,6 +54,7 @@ import { isIdbSentinel, sentinelId, getImage } from '@/utils/imageDB';
 import type { CanvasItem as ICanvasItem } from '@/types/canvas';
 import { useRecycleBin } from '@/hooks/useRecycleBin';
 import { RecycleBin } from './RecycleBin';
+import { CanvasSitemapPanel } from './CanvasSitemapPanel';
 
 function canvasTotalNet(items: CanvasItem[]): number {
     return flattenItems(items).reduce((sum, item) => {
@@ -101,6 +103,7 @@ export const Canvas: React.FC = () => {
     } = useCanvas();
     const recycleBin = useRecycleBin();
     const [showRecycleBin, setShowRecycleBin] = React.useState(false);
+    const [showSitemap, setShowSitemap] = React.useState(false);
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
@@ -1120,6 +1123,14 @@ export const Canvas: React.FC = () => {
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Canvas</span>
                 </button>
 
+                <button
+                    onClick={() => setShowSitemap((v) => !v)}
+                    className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${showSitemap ? 'bg-purple-500/15' : ''}`}
+                    title="Canvas Map (tree view)"
+                >
+                    <Network size={20} className={`transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/60 group-hover:text-purple-400'}`} />
+                    <span className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/30 group-hover:text-white/60'}`}>Tree</span>
+                </button>
 
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
@@ -1638,6 +1649,15 @@ export const Canvas: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showSitemap && (
+                <CanvasSitemapPanel
+                    items={state.items}
+                    currentPath={navigationPath}
+                    onNavigate={(path) => setNavigationPath(path)}
+                    onClose={() => setShowSitemap(false)}
+                />
             )}
 
             {showSearch && (

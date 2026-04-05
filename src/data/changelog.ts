@@ -6,6 +6,28 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v1.9.3',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Canvas Map: added Show Details toggle — reveals per-canvas stat pills for sub-canvas count, block count, aggregate timer, and net financials (recursive across all descendants).',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.2',
+    sections: [
+      {
+        heading: 'New Features',
+        changes: [
+          'Added Canvas Map ("Tree") button in the toolbar — opens a sitemap-style popup showing all sub-canvases in a collapsible tree, with the current canvas highlighted; click any node to navigate there instantly.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v1.9.1',
     sections: [
       {

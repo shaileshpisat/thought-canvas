@@ -9,6 +9,20 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v1.9.3
+
+### Enhancements
+- Canvas Map: added **Show Details** toggle in the header — reveals per-canvas stat pills for sub-canvas count, block count, aggregate timer, and net financials (recursive across all descendants).
+
+---
+
+## v1.9.2
+
+### New Features
+- Added **Canvas Map** ("Tree") button in the toolbar — opens a sitemap-style popup showing all sub-canvases in a collapsible tree, with the current canvas highlighted; click any node to navigate there instantly.
+
+---
+
 ## v1.9.1
 
 ### Bug Fixes
