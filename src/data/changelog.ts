@@ -6,6 +6,52 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v1.9.7',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Archive blocks are now fully read-only — editing, deletion, tag changes, priority, date, timer, and financials are blocked. Drag, history panel, eject, and move-into remain available.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.6',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'All blocks now track a modifiedAt timestamp, updated on every edit (inbox blocks included).',
+          'Audit history panel shows Created and Modified timestamps at the top for all blocks.',
+          'Inbox resurface schedule resets on modification — editing a block restarts the day-0/1/7… cycle from the last edit date.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.5',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Inbox: audit history is now fully functional — content edits are recorded, the history panel can be opened, and actions can be logged and deleted directly on inbox items.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.4',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Inbox: clicking the amber resurface count badge filters the inbox view to show only resurfacing items; clicking again clears the filter. Badge turns solid amber when active.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v1.9.3',
     sections: [
       {

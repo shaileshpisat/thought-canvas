@@ -387,7 +387,7 @@ export const useCanvas = () => {
   const updateInboxItem = useCallback((id: string, updates: Partial<CanvasItem>) => {
     setState((prev) => ({
       ...prev,
-      inbox: (prev.inbox ?? []).map((i) => (i.id === id ? { ...i, ...updates } : i)),
+      inbox: (prev.inbox ?? []).map((i) => (i.id === id ? { ...i, ...updates, modifiedAt: Date.now() } : i)),
     }));
   }, []);
 

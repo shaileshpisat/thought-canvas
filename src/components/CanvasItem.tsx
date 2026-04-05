@@ -65,6 +65,7 @@ interface Props {
     allItems?: ICanvasItem[];
     onNavigateToBlock?: (path: string[], itemId: string) => void;
     walletMaster?: import('@/types/canvas').WalletAccount[];
+    readOnly?: boolean;
 }
 
 import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
@@ -243,7 +244,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [] }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], readOnly = false }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -490,7 +491,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         ) : (
                             <div
                                 className="w-full h-full p-4 overflow-y-auto cursor-text text-white/90"
-                                onClick={() => setIsEditing(true)}
+                                onClick={() => { if (!readOnly) setIsEditing(true); }}
                             >
                                 {item.content
                                     ? <div className="text-sm max-w-none text-white/90">
@@ -904,13 +905,13 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
                         {item.type === 'canvas' && (
                             <>
-                                <button
+                                {!readOnly && <button
                                     onClick={() => setIsRenaming(true)}
                                     className="p-1.5 text-white/40 hover:text-purple-400 transition-colors"
                                     title="Rename canvas"
                                 >
                                     <Edit3 size={16} />
-                                </button>
+                                </button>}
                                 <button
                                     onClick={() => onEnterCanvas?.(item.id)}
                                     className="p-1.5 text-white/40 hover:text-purple-400 transition-colors"
@@ -921,7 +922,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </>
                         )}
 
-                        {item.type === 'image' && (
+                        {item.type === 'image' && !readOnly && (
                             <>
                                 <button
                                     onClick={() => onUpdate(item.id, { metadata: { ...item.metadata, naturalSize: !item.metadata?.naturalSize } })}
@@ -940,7 +941,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </>
                         )}
 
-                        {item.type !== 'canvas' && (<>
+                        {item.type !== 'canvas' && !readOnly && (<>
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {/* Date picker button */}
@@ -1189,7 +1190,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
                         <div className="w-[1px] h-4 bg-white/10" />
 
-                        {onArchive && (
+                        {onArchive && !readOnly && (
                             <button
                                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onArchive(); }}
                                 className="p-1.5 text-white/40 hover:text-amber-400 transition-colors"
@@ -1199,12 +1200,14 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </button>
                         )}
 
+                        {!readOnly && (
                         <button
                             onClick={() => onRemove(item.id)}
                             className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
                         >
                             <Trash2 size={16} />
                         </button>
+                        )}
                     </div>
                 )}
 
@@ -1351,7 +1354,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     ) : item.caption ? (
                         <div
                             className="shrink-0 w-full bg-black/40 border-t border-white/10 px-2 py-1 text-xs text-white/50 text-center truncate cursor-text"
-                            onDoubleClick={(e) => { e.stopPropagation(); setIsEditingCaption(true); }}
+                            onDoubleClick={(e) => { e.stopPropagation(); if (!readOnly) setIsEditingCaption(true); }}
                             title="Double-click to edit caption"
                         >
                             {item.caption}
@@ -1855,6 +1858,20 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     >
                                         <X size={8} />
                                     </button>
+                                </div>
+                                <div className="flex flex-col gap-0.5 px-1 pb-1 border-b border-white/5 mb-1">
+                                    {item.createdAt && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[8px] text-white/25">Created</span>
+                                            <span className="text-[8px] text-white/40">{new Date(item.createdAt).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                    {item.modifiedAt && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[8px] text-white/25">Modified</span>
+                                            <span className="text-[8px] text-white/40">{new Date(item.modifiedAt).toLocaleString()}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-1">
                                     {historyEntries.length === 0 ? (

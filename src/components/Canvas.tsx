@@ -119,6 +119,7 @@ export const Canvas: React.FC = () => {
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
     const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
+    const [inboxResurfaceFilter, setInboxResurfaceFilter] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
     const [navigationPath, setNavigationPath] = React.useState<string[]>([]);
@@ -275,19 +276,23 @@ export const Canvas: React.FC = () => {
     const archiveItems = state.archive ?? [];
     const archiveItemCount = archiveItems.length;
 
-    const resurfaceCount = React.useMemo(() => {
+    const resurfaceIds = React.useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayMs = today.getTime();
         const MS_PER_DAY = 86400000;
-        return inboxItems.filter((item) => {
-            const createdAt = item.createdAt ?? todayMs;
-            const createdDay = new Date(createdAt);
-            createdDay.setHours(0, 0, 0, 0);
-            const d = Math.round((todayMs - createdDay.getTime()) / MS_PER_DAY);
-            return d === 0 || d === 1 || (d >= 7 && d % 7 === 0);
-        }).length;
+        return new Set(
+            inboxItems.filter((item) => {
+                const baseTs = item.modifiedAt ?? item.createdAt ?? todayMs;
+                const baseDay = new Date(baseTs);
+                baseDay.setHours(0, 0, 0, 0);
+                const d = Math.round((todayMs - baseDay.getTime()) / MS_PER_DAY);
+                return d === 0 || d === 1 || (d >= 7 && d % 7 === 0);
+            }).map((i) => i.id)
+        );
     }, [inboxItems, clockTick]); // clockTick ensures it updates at midnight if open
+    const resurfaceCount = resurfaceIds.size;
+    const visibleInboxItems = inboxResurfaceFilter ? inboxItems.filter((i) => resurfaceIds.has(i.id)) : inboxItems;
 
     // Date stats across all items (including nested)
     const allFlat = flattenItems(state.items);
@@ -321,6 +326,36 @@ export const Canvas: React.FC = () => {
 
     const handleLogHistory = (id: string, type: any, action: string, snapshot?: string) => {
         logHistoryAtPath(navigationPathRef.current, id, type, action, snapshot);
+    };
+
+    // Inbox-specific action/history handlers
+    const handleInboxLogHistory = (id: string, type: any, action: string, snapshot?: string) => {
+        const item = (state.inbox ?? []).find((i) => i.id === id);
+        if (!item) return;
+        const entry = { id: crypto.randomUUID(), type, action, timestamp: Date.now(), ...(snapshot ? { snapshot } : {}) };
+        updateInboxItem(id, { history: [...(item.history ?? []), entry] });
+    };
+
+    const handleInboxLogAction = (id: string, label: string) => {
+        if (!label.trim()) return;
+        const item = (state.inbox ?? []).find((i) => i.id === id);
+        if (!item) return;
+        const now = Date.now();
+        const prevActions = item.actions ?? [];
+        let duration = 0;
+        if (prevActions.length > 0) {
+            duration = Math.floor((now - prevActions[prevActions.length - 1].timestamp) / 1000);
+        } else if (item.timer) {
+            duration = item.timer.totalElapsed + (item.timer.isRunning ? Math.floor((now - item.timer.startTime) / 1000) : 0);
+        }
+        const newAction = { id: crypto.randomUUID(), label: label.trim(), timestamp: now, duration };
+        updateInboxItem(id, { actions: [...prevActions, newAction] });
+    };
+
+    const handleInboxDeleteAction = (id: string, actionId: string) => {
+        const item = (state.inbox ?? []).find((i) => i.id === id);
+        if (!item) return;
+        updateInboxItem(id, { actions: (item.actions ?? []).filter((a) => a.id !== actionId) });
     };
 
     // Move a block out of current sub-canvas to parent level
@@ -630,6 +665,7 @@ export const Canvas: React.FC = () => {
             if (e.key === 'Escape') {
                 if (showSearchRef.current) return; // let SearchPanel handle its own Escape
                 if (viewModeRef.current === 'inbox' || viewModeRef.current === 'archive') {
+                    setInboxResurfaceFilter(false);
                     setViewMode('canvas');
                     return;
                 }
@@ -752,14 +788,14 @@ export const Canvas: React.FC = () => {
             ) : viewMode === 'inbox' ? (
                 /* viewMode === 'inbox' */
                 <div className="absolute inset-0 w-full h-full">
-                    {inboxItems.length === 0 ? (
+                    {visibleInboxItems.length === 0 ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
                             <Inbox size={40} className="text-white/10" />
-                            <p className="text-white/25 text-sm font-medium">Inbox is empty</p>
+                            <p className="text-white/25 text-sm font-medium">{inboxResurfaceFilter ? 'No resurfacing items today' : 'Inbox is empty'}</p>
                             <p className="text-white/15 text-xs">New notes captured here by default</p>
                         </div>
                     ) : (
-                        inboxItems.map((item) => (
+                        visibleInboxItems.map((item) => (
                             <CanvasItemComponent
                                 key={item.id}
                                 item={item}
@@ -783,14 +819,14 @@ export const Canvas: React.FC = () => {
                                 onStopTimer={handleStopTimer}
                                 isAlerting={alertingIds.has(item.id)}
                                 isHighlighted={false}
-                                onLogAction={() => {}}
-                                onDeleteAction={() => {}}
+                                onLogAction={handleInboxLogAction}
+                                onDeleteAction={handleInboxDeleteAction}
                                 tagMaster={tagMaster}
                                 onUpdateTags={(id, tags) => {
                                     tags.forEach((t) => addToTagMaster(t));
                                     updateInboxItem(id, { tags });
                                 }}
-                                onLogHistory={() => {}}
+                                onLogHistory={handleInboxLogHistory}
                                 walletMaster={state.wallets ?? []}
                                 allItems={state.items}
                                 onNavigateToBlock={() => {}}
@@ -832,13 +868,11 @@ export const Canvas: React.FC = () => {
                                 onStopTimer={handleStopTimer}
                                 isAlerting={alertingIds.has(item.id)}
                                 isHighlighted={false}
+                                readOnly={true}
                                 onLogAction={() => {}}
                                 onDeleteAction={() => {}}
                                 tagMaster={tagMaster}
-                                onUpdateTags={(id, tags) => {
-                                    tags.forEach((t) => addToTagMaster(t));
-                                    updateArchiveItem(id, { tags });
-                                }}
+                                onUpdateTags={() => {}}
                                 onLogHistory={() => {}}
                                 walletMaster={state.wallets ?? []}
                                 allItems={state.items}
@@ -962,10 +996,14 @@ export const Canvas: React.FC = () => {
                         </span>
                     )}
                     {resurfaceCount > 0 && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/20 animate-pulse">
+                        <button
+                            onClick={() => setInboxResurfaceFilter((f) => !f)}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black border transition-all ${inboxResurfaceFilter ? 'bg-amber-500/30 text-amber-300 border-amber-400/40' : 'bg-amber-500/15 text-amber-400 border-amber-500/20 animate-pulse hover:bg-amber-500/25'}`}
+                            title={inboxResurfaceFilter ? 'Show all inbox items' : 'Show only resurfacing items'}
+                        >
                             <RotateCcw size={8} />
                             {resurfaceCount}
-                        </span>
+                        </button>
                     )}
                     <span className="ml-1 text-[10px] text-white/20 pl-1 border-l border-white/10">
                         Eject to board · Esc to exit
@@ -1188,7 +1226,7 @@ export const Canvas: React.FC = () => {
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
-                    onClick={() => setViewMode((v) => v === 'inbox' ? 'canvas' : 'inbox')}
+                    onClick={() => { setViewMode((v) => v === 'inbox' ? 'canvas' : 'inbox'); setInboxResurfaceFilter(false); }}
                     className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${viewMode === 'inbox' ? 'text-sky-400' : ''}`}
                     title={`Inbox (${inboxItemCount} items${resurfaceCount > 0 ? `, ${resurfaceCount} resurfacing` : ''})`}
                 >
