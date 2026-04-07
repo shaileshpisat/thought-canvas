@@ -229,13 +229,30 @@ function canvasFinancialNet(item: import('@/types/canvas').CanvasItem): number {
     return own + childrenNet;
 }
 
-const RECURRING_OPTIONS: { value: import('@/types/canvas').CanvasItem['recurring']; label: string; icon: string }[] = [
-    { value: 'daily',    label: 'Daily',       icon: '↻' },
-    { value: 'weekdays', label: 'Weekdays',     icon: '↻' },
-    { value: 'weekly',   label: 'Weekly',       icon: '↻' },
-    { value: 'biweekly', label: 'Bi-weekly',    icon: '↻' },
-    { value: 'monthly',  label: 'Monthly',      icon: '↻' },
-];
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function recurringLabel(rule: import('@/types/canvas').RecurringRule): string {
+    const { freq, interval, days, endType, endCount, endDate } = rule;
+    let base = '';
+    if (freq === 'daily') {
+        base = interval === 1 ? 'Daily' : `Every ${interval} days`;
+    } else if (freq === 'weekly') {
+        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const dayStr = (days && days.length > 0) ? ' ' + days.map(d => dayNames[d]).join(' ') : '';
+        base = interval === 1 ? `Weekly${dayStr}` : `Every ${interval} weeks${dayStr}`;
+    } else if (freq === 'monthly') {
+        base = interval === 1 ? 'Monthly' : `Every ${interval} months`;
+    } else {
+        base = interval === 1 ? 'Yearly' : `Every ${interval} years`;
+    }
+    if (endType === 'count' && endCount) base += ` · ${endCount}×`;
+    if (endType === 'date' && endDate) {
+        const d = new Date(endDate + 'T00:00:00');
+        base += ` · until ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+    }
+    return base;
+}
 
 const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
     const src = useImageSrc(content);
@@ -254,9 +271,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [isResizing, setIsResizing] = useState(false);
     const [showMoveInto, setShowMoveInto] = useState(false);
     const [showPriority, setShowPriority] = useState(false);
-    const [showDuration, setShowDuration] = useState(false);
-    const [showRecurring, setShowRecurring] = useState(false);
-    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null);
     const [isLogging, setIsLogging] = useState(false);
@@ -425,25 +440,6 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const currentWidth = localSize?.width ?? item.width ?? defaultWidth;
     const currentHeight = localSize?.height ?? item.height ?? defaultHeight;
 
-    const handleDateClick = () => {
-        if (dateInputRef.current) {
-            try {
-                (dateInputRef.current as any).showPicker();
-            } catch {
-                dateInputRef.current.click();
-            }
-        }
-    };
-
-    const handleTimeClick = () => {
-        if (timeInputRef.current) {
-            try {
-                (timeInputRef.current as any).showPicker();
-            } catch {
-                timeInputRef.current.click();
-            }
-        }
-    };
 
     const renderContent = () => {
         switch (item.type) {
@@ -455,6 +451,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             <textarea
                                 ref={textareaRef}
                                 className="w-full h-full bg-transparent outline-none resize-none text-white/90 placeholder-white/20 p-4 font-mono text-sm leading-relaxed"
+                                style={(!!item.tags?.length || isAddingTag) ? { paddingBottom: '2.5rem' } : undefined}
                                 value={item.content}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -481,7 +478,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     if (e.key === '@') {
                                         e.preventDefault();
                                         openingDatePicker.current = true;
-                                        handleDateClick();
+                                        setShowSchedule(true);
                                         setTimeout(() => { openingDatePicker.current = false; }, 300);
                                     }
                                 }}
@@ -604,7 +601,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                 if (e.key === '@') {
                                                     e.preventDefault();
                                                     openingDatePicker.current = true;
-                                                    handleDateClick();
+                                                    setShowSchedule(true);
                                                     setTimeout(() => { openingDatePicker.current = false; }, 300);
                                                 }
                                             }}
@@ -946,8 +943,8 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
                         {/* Date picker button */}
                         <button
-                            onClick={handleDateClick}
-                            className={`p-1.5 transition-colors relative ${
+                            onClick={() => setShowSchedule(v => !v)}
+                            className={`p-1.5 transition-colors flex items-center gap-1 text-[10px] font-mono relative ${
                                 item.date
                                     ? dateStatus === 'today'
                                         ? 'text-green-400 hover:text-green-300'
@@ -956,142 +953,235 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         : 'text-sky-400 hover:text-sky-300'
                                     : 'text-white/40 hover:text-sky-400'
                             }`}
-                            title={item.date ? `Date: ${item.date}${item.time ? ` ${item.time}` : ''} — click to change` : 'Add date'}
+                            title="Schedule — date, time, duration, recurrence"
                         >
-                            <Calendar size={16} />
+                            <Calendar size={13} />
+                            {item.date && (
+                                <span className="leading-none whitespace-nowrap">
+                                    {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {item.time && <> · {item.time}</>}
+                                    {item.duration && <> · {formatBlockDuration(item.duration)}</>}
+                                    {item.recurring && <> ↻ {recurringLabel(item.recurring)}</>}
+                                </span>
+                            )}
                         </button>
-                        {item.date && (
-                            <>
-                                {/* Time picker */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => { if (item.time) { setShowTimePicker(v => !v); } else { handleTimeClick(); } }}
-                                        className={`p-1.5 transition-colors ${item.time ? 'text-sky-400 hover:text-sky-300' : 'text-white/25 hover:text-sky-400'}`}
-                                        title={item.time ? `Time: ${item.time} — click to change` : 'Add time'}
-                                    >
-                                        <Clock size={13} />
-                                    </button>
-                                    {showTimePicker && item.time && (
-                                        <div
-                                            className="absolute top-full left-0 mt-1 z-[200] min-w-[110px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
-                                            style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
-                                        >
-                                            <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Time</div>
-                                            <button
-                                                onClick={() => { setShowTimePicker(false); handleTimeClick(); }}
-                                                className="w-full text-left px-3 py-2 text-xs text-white/60 hover:text-white hover:bg-white/8 transition-colors"
-                                            >
-                                                Change
-                                            </button>
-                                            <div className="border-t border-white/8 mx-2" />
-                                            <button
-                                                onClick={() => { onUpdate(item.id, { time: undefined, duration: undefined, recurring: undefined }); setShowTimePicker(false); }}
-                                                className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
-                                            >
-                                                Clear
-                                            </button>
-                                        </div>
+                        {showSchedule && (
+                            <div
+                                className="absolute top-full left-0 mt-1 z-[200] w-72 rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                            >
+                                {/* Date row */}
+                                <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Date</div>
+                                <div className="flex items-center gap-2 px-3 py-2">
+                                    <input
+                                        ref={dateInputRef}
+                                        type="date"
+                                        className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-xs text-white/70 border border-white/10 focus:outline-none focus:border-sky-500/50"
+                                        value={item.date || ''}
+                                        onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
+                                    />
+                                    {item.date && (
+                                        <button onClick={() => { onUpdate(item.id, { date: undefined, time: undefined, duration: undefined, recurring: undefined }); setShowSchedule(false); }} className="text-white/20 hover:text-red-400 transition-colors">
+                                            <X size={11} />
+                                        </button>
                                     )}
                                 </div>
-                                {item.time && (
+                                {/* Time row */}
+                                {item.date && (
                                     <>
-                                        {/* Duration picker */}
-                                        <div className="relative">
-                                            <button
-                                                onClick={() => setShowDuration(v => !v)}
-                                                className={`p-1.5 transition-colors flex items-center gap-0.5 text-[10px] font-mono ${item.duration ? 'text-violet-400 hover:text-violet-300' : 'text-white/25 hover:text-sky-400'}`}
-                                                title={item.duration ? `Duration: ${formatBlockDuration(item.duration)} — click to change` : 'Add duration'}
-                                            >
-                                                {item.duration ? formatBlockDuration(item.duration) : <><ArrowRight size={11} className="rotate-90" /><span className="sr-only">duration</span></>}
-                                            </button>
-                                            {showDuration && (
-                                                <div
-                                                    className="absolute top-full left-0 mt-1 z-[200] min-w-[120px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
-                                                    style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
+                                        <div className="border-t border-white/8 mx-2" />
+                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Time</div>
+                                        <div className="flex items-center gap-2 px-3 py-2">
+                                            <input
+                                                ref={timeInputRef}
+                                                type="time"
+                                                className="flex-1 bg-white/5 rounded-lg px-2 py-1 text-xs text-white/70 border border-white/10 focus:outline-none focus:border-sky-500/50"
+                                                value={item.time || ''}
+                                                onChange={(e) => onUpdate(item.id, { time: e.target.value || undefined })}
+                                            />
+                                            {item.time && (
+                                                <button onClick={() => onUpdate(item.id, { time: undefined, duration: undefined, recurring: undefined })} className="text-white/20 hover:text-red-400 transition-colors">
+                                                    <X size={11} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                                {/* Duration section */}
+                                {item.date && item.time && (
+                                    <>
+                                        <div className="border-t border-white/8 mx-2" />
+                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Duration</div>
+                                        <div className="px-2 pb-2 flex flex-wrap gap-1">
+                                            {DURATION_PRESETS.map(({ label, minutes }) => (
+                                                <button
+                                                    key={minutes}
+                                                    onClick={() => onUpdate(item.id, { duration: item.duration === minutes ? undefined : minutes })}
+                                                    className={`px-2 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${item.duration === minutes ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:bg-white/8'}`}
                                                 >
-                                                    <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Duration</div>
-                                                    {DURATION_PRESETS.map(({ label, minutes }) => (
-                                                        <button
-                                                            key={minutes}
-                                                            onClick={() => { onUpdate(item.id, { duration: item.duration === minutes ? undefined : minutes }); setShowDuration(false); }}
-                                                            className={`w-full text-left px-3 py-2 text-xs hover:bg-white/8 transition-colors ${item.duration === minutes ? 'text-violet-400 font-semibold' : 'text-white/60'}`}
-                                                        >
-                                                            {label}
-                                                        </button>
-                                                    ))}
-                                                    {item.duration && (
-                                                        <>
-                                                            <div className="border-t border-white/8 mx-2" />
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                                {/* Recurring section */}
+                                {item.date && item.time && item.duration && (() => {
+                                    const rule = item.recurring;
+                                    const originDay = item.date ? new Date(item.date + 'T00:00:00').getDay() : 1;
+                                    const defaultRule: import('@/types/canvas').RecurringRule = { freq: 'weekly', interval: 1, days: [originDay], endType: 'never' };
+                                    const cur = rule ?? defaultRule;
+                                    const isOn = !!rule;
+
+                                    const setRule = (patch: Partial<import('@/types/canvas').RecurringRule>) => {
+                                        onUpdate(item.id, { recurring: { ...cur, ...patch } });
+                                    };
+
+                                    // nth weekday string e.g. "2nd Tue"
+                                    const nthWeekdayLabel = () => {
+                                        const d = new Date(item.date + 'T00:00:00');
+                                        const nth = Math.ceil(d.getDate() / 7);
+                                        const ordinals = ['', '1st', '2nd', '3rd', '4th', '5th'];
+                                        const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                                        return `${ordinals[nth] ?? nth+'th'} ${dayNames[d.getDay()]}`;
+                                    };
+
+                                    return (
+                                        <>
+                                            <div className="border-t border-white/8 mx-2" />
+                                            <div className="px-3 py-1.5 flex items-center justify-between">
+                                                <span className="text-[9px] font-bold uppercase tracking-wider text-white/30">Repeat</span>
+                                                {isOn && (
+                                                    <button onClick={() => onUpdate(item.id, { recurring: undefined })} className="text-white/20 hover:text-red-400 transition-colors text-[9px]">off</button>
+                                                )}
+                                            </div>
+                                            {/* Freq chips */}
+                                            <div className="px-2 pb-1 flex gap-1">
+                                                {(['daily','weekly','monthly','yearly'] as const).map(f => (
+                                                    <button
+                                                        key={f}
+                                                        onClick={() => {
+                                                            const next: import('@/types/canvas').RecurringRule = { ...cur, freq: f };
+                                                            if (f === 'weekly' && (!next.days || next.days.length === 0)) next.days = [originDay];
+                                                            onUpdate(item.id, { recurring: next });
+                                                        }}
+                                                        className={`flex-1 py-1 rounded-lg text-[9px] font-semibold border transition-colors capitalize ${isOn && cur.freq === f ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70'}`}
+                                                    >
+                                                        {f.charAt(0).toUpperCase() + f.slice(1)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {/* Interval + freq-specific options */}
+                                            {isOn && (
+                                                <div className="px-2 pb-1 space-y-1">
+                                                    <div className="flex items-center gap-1 text-[10px] text-white/50">
+                                                        <span>Every</span>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={365}
+                                                            value={cur.interval}
+                                                            onChange={e => setRule({ interval: Math.max(1, parseInt(e.target.value) || 1) })}
+                                                            className="w-10 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[10px] text-white/70 focus:outline-none focus:border-amber-500/50 text-center"
+                                                        />
+                                                        <span>{cur.freq === 'daily' ? 'day(s)' : cur.freq === 'weekly' ? 'week(s)' : cur.freq === 'monthly' ? 'month(s)' : 'year(s)'}</span>
+                                                    </div>
+                                                    {/* Weekly day toggles */}
+                                                    {cur.freq === 'weekly' && (
+                                                        <div className="flex gap-0.5">
+                                                            {DAY_LABELS.map((lbl, idx) => {
+                                                                const active = cur.days?.includes(idx) ?? false;
+                                                                return (
+                                                                    <button
+                                                                        key={idx}
+                                                                        onClick={() => {
+                                                                            const prev = cur.days ?? [];
+                                                                            const next = active ? prev.filter(d => d !== idx) : [...prev, idx];
+                                                                            setRule({ days: next });
+                                                                        }}
+                                                                        className={`flex-1 py-0.5 rounded text-[9px] font-bold border transition-colors ${active ? 'bg-amber-500/25 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/30 hover:text-white/60'}`}
+                                                                    >
+                                                                        {lbl}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                    {/* Monthly sub-option */}
+                                                    {cur.freq === 'monthly' && (
+                                                        <div className="flex gap-1">
                                                             <button
-                                                                onClick={() => { onUpdate(item.id, { duration: undefined }); setShowDuration(false); }}
-                                                                className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
+                                                                onClick={() => setRule({ days: [] })}
+                                                                className={`flex-1 py-0.5 rounded-lg text-[9px] border transition-colors ${(!cur.days || cur.days.length === 0) ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'}`}
                                                             >
-                                                                Clear
+                                                                Day {new Date(item.date + 'T00:00:00').getDate()}
                                                             </button>
-                                                        </>
+                                                            <button
+                                                                onClick={() => setRule({ days: [new Date(item.date + 'T00:00:00').getDay()] })}
+                                                                className={`flex-1 py-0.5 rounded-lg text-[9px] border transition-colors ${(cur.days && cur.days.length > 0) ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'}`}
+                                                            >
+                                                                {nthWeekdayLabel()}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             )}
-                                        </div>
-                                        {/* Recurring picker — only when time + duration set */}
-                                        {item.duration && (
-                                            <div className="relative">
-                                                <button
-                                                    onClick={() => setShowRecurring(v => !v)}
-                                                    className={`p-1.5 transition-colors text-[10px] font-bold ${item.recurring ? 'text-amber-400 hover:text-amber-300' : 'text-white/25 hover:text-sky-400'}`}
-                                                    title={item.recurring ? `Repeats ${item.recurring} — click to change` : 'Set recurrence'}
-                                                >
-                                                    ↻
-                                                </button>
-                                                {showRecurring && (
-                                                    <div
-                                                        className="absolute top-full left-0 mt-1 z-[200] min-w-[130px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
-                                                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}
-                                                    >
-                                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Repeat</div>
-                                                        {RECURRING_OPTIONS.map(({ value, label }) => (
+                                            {/* End condition — activate by clicking a freq chip first */}
+                                            {isOn && (
+                                                <div className="px-2 pb-2 space-y-1">
+                                                    <div className="text-[9px] text-white/30 uppercase tracking-wider font-bold px-1">Ends</div>
+                                                    <div className="flex gap-1">
+                                                        {(['never','count','date'] as const).map(et => (
                                                             <button
-                                                                key={value}
-                                                                onClick={() => { onUpdate(item.id, { recurring: item.recurring === value ? undefined : value }); setShowRecurring(false); }}
-                                                                className={`w-full text-left px-3 py-2 text-xs hover:bg-white/8 transition-colors flex items-center gap-2 ${item.recurring === value ? 'text-amber-400 font-semibold' : 'text-white/60'}`}
+                                                                key={et}
+                                                                onClick={() => setRule({ endType: et })}
+                                                                className={`flex-1 py-0.5 rounded-lg text-[9px] border transition-colors capitalize ${cur.endType === et ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'}`}
                                                             >
-                                                                <span className="text-sm leading-none">↻</span>
-                                                                {label}
+                                                                {et === 'never' ? 'Never' : et === 'count' ? 'After' : 'Date'}
                                                             </button>
                                                         ))}
-                                                        {item.recurring && (
-                                                            <>
-                                                                <div className="border-t border-white/8 mx-2" />
-                                                                <button
-                                                                    onClick={() => { onUpdate(item.id, { recurring: undefined }); setShowRecurring(false); }}
-                                                                    className="w-full text-left px-3 py-2 text-xs text-white/30 hover:text-red-400 hover:bg-white/5 transition-colors"
-                                                                >
-                                                                    Clear
-                                                                </button>
-                                                            </>
-                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </>
+                                                    {cur.endType === 'count' && (
+                                                        <div className="flex items-center gap-1 px-1 text-[10px] text-white/50">
+                                                            <span>After</span>
+                                                            <input
+                                                                type="number"
+                                                                min={1}
+                                                                value={cur.endCount ?? 5}
+                                                                onChange={e => setRule({ endCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                                                                className="w-10 bg-white/5 border border-white/10 rounded px-1 py-0.5 text-[10px] text-white/70 focus:outline-none focus:border-amber-500/50 text-center"
+                                                            />
+                                                            <span>times</span>
+                                                        </div>
+                                                    )}
+                                                    {cur.endType === 'date' && (
+                                                        <input
+                                                            type="date"
+                                                            value={cur.endDate ?? ''}
+                                                            onChange={e => setRule({ endDate: e.target.value || undefined })}
+                                                            className="w-full bg-white/5 rounded-lg px-2 py-0.5 text-[10px] text-white/70 border border-white/10 focus:outline-none focus:border-amber-500/50"
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
+                                            {/* Enable toggle if not yet on */}
+                                            {!isOn && (
+                                                <div className="px-2 pb-2">
+                                                    <button
+                                                        onClick={() => onUpdate(item.id, { recurring: defaultRule })}
+                                                        className="w-full py-1 rounded-lg text-[10px] font-semibold border border-white/10 bg-white/5 text-white/40 hover:bg-amber-500/10 hover:border-amber-500/30 hover:text-amber-300 transition-colors"
+                                                    >
+                                                        ↻ Enable repeat
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         )}
-                        <input
-                            ref={dateInputRef}
-                            type="date"
-                            className="absolute opacity-0 w-0 h-0 pointer-events-none overflow-hidden"
-                            value={item.date || ''}
-                            onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })}
-                        />
-                        <input
-                            ref={timeInputRef}
-                            type="time"
-                            className="absolute opacity-0 w-0 h-0 pointer-events-none overflow-hidden"
-                            value={item.time || ''}
-                            onChange={(e) => onUpdate(item.id, { time: e.target.value || undefined })}
-                        />
+                        <input ref={dateInputRef} type="date" className="absolute opacity-0 w-0 h-0 pointer-events-none" value={item.date || ''} onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })} />
+                        <input ref={timeInputRef} type="time" className="absolute opacity-0 w-0 h-0 pointer-events-none" value={item.time || ''} onChange={(e) => onUpdate(item.id, { time: e.target.value || undefined })} />
 
                         <div className="w-[1px] h-4 bg-white/10" />
 
@@ -1234,7 +1324,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     </div>
                     {item.type === 'image' && (!!item.tags?.length || isHovered || isAddingTag) && (
                         <div
-                            className="shrink-0 flex flex-wrap items-center gap-1 px-2.5 py-1.5 border-t border-white/8"
+                            className="shrink-0 flex flex-nowrap items-center gap-1 px-2.5 py-1.5 border-t border-white/8 overflow-x-auto"
                             style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
                             onMouseDown={(e) => e.stopPropagation()}
                         >
@@ -1366,7 +1456,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 {/* Tags strip — visible when tags exist or card is hovered (not image — handled inline) */}
                 {item.type !== 'image' && (!!item.tags?.length || isHovered || isAddingTag) && (
                     <div
-                        className="absolute left-0 right-0 z-20 flex flex-wrap items-center gap-1 px-2.5 py-1.5 rounded-b-xl"
+                        className="absolute left-0 right-0 z-20 flex flex-nowrap items-center gap-1 px-2.5 py-1.5 rounded-b-xl overflow-x-auto"
                         style={{ bottom: item.type === 'canvas' ? 40 : 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
                         onMouseDown={(e) => e.stopPropagation()}
                     >

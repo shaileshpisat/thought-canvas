@@ -16,6 +16,28 @@ interface PlanItemData {
   path: string[];
 }
 
+function recurringLabel(recurring: CanvasItem['recurring']): string {
+  if (!recurring) return '';
+  // Legacy string shim
+  if (typeof recurring === 'string') return String(recurring);
+  const { freq, interval, endType, endCount, endDate, days } = recurring as import('@/types/canvas').RecurringRule;
+  const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let base = '';
+  if (freq === 'daily') base = interval === 1 ? 'Daily' : `Every ${interval}d`;
+  else if (freq === 'weekly') {
+    const ds = (days && days.length > 0) ? ' ' + days.map(d => dayNames[d]).join(' ') : '';
+    base = interval === 1 ? `Weekly${ds}` : `Every ${interval}wk${ds}`;
+  } else if (freq === 'monthly') base = interval === 1 ? 'Monthly' : `Every ${interval}mo`;
+  else base = interval === 1 ? 'Yearly' : `Every ${interval}yr`;
+  if (endType === 'count' && endCount) base += ` ${endCount}×`;
+  if (endType === 'date' && endDate) {
+    const d = new Date(endDate + 'T00:00:00');
+    base += ` til ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+  }
+  return base;
+}
+
 function financialNet(financials: FinancialEntry[]): number {
     return financials.reduce((sum, f) => {
         const positive = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
@@ -82,6 +104,20 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
     const occurrences = (item: CanvasItem): string[] => {
       if (!item.recurring || !item.date) return [item.date!];
 
+      // Migration shim: old string-based recurring values
+      let rule = item.recurring as import('@/types/canvas').RecurringRule | string;
+      if (typeof rule === 'string') {
+        const legacyMap: Record<string, import('@/types/canvas').RecurringRule> = {
+          daily:    { freq: 'daily',   interval: 1, endType: 'never' },
+          weekdays: { freq: 'daily',   interval: 1, endType: 'never' }, // approx
+          weekly:   { freq: 'weekly',  interval: 1, endType: 'never' },
+          biweekly: { freq: 'weekly',  interval: 2, endType: 'never' },
+          monthly:  { freq: 'monthly', interval: 1, endType: 'never' },
+        };
+        rule = legacyMap[rule as string] ?? { freq: 'weekly', interval: 1, endType: 'never' };
+      }
+      const r = rule as import('@/types/canvas').RecurringRule;
+
       const origin = new Date(item.date + 'T00:00:00');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -89,47 +125,87 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
       const windowEnd = new Date(origin);
       windowEnd.setDate(windowEnd.getDate() + recurringDays);
 
+      // Apply endDate constraint
+      if (r.endType === 'date' && r.endDate) {
+        const ed = new Date(r.endDate + 'T00:00:00');
+        if (ed < windowEnd) { windowEnd.setTime(ed.getTime()); }
+      }
+
       // Never show occurrences before the origin date
       const effectiveStart = origin > today ? origin : today;
       const dates: string[] = [];
 
       const push = (d: Date) => {
-        if (d >= effectiveStart && d <= windowEnd) dates.push(fmt(d));
+        if (d >= effectiveStart && d <= windowEnd) {
+          if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) return;
+          dates.push(fmt(d));
+        }
       };
 
-      if (item.recurring === 'daily') {
-        const cur = new Date(effectiveStart);
-        while (cur <= windowEnd) { dates.push(fmt(cur)); cur.setDate(cur.getDate() + 1); }
-
-      } else if (item.recurring === 'weekly') {
-        // First occurrence on or after effectiveStart that shares origin's weekday
-        const cur = new Date(effectiveStart);
-        const skip = (origin.getDay() - cur.getDay() + 7) % 7;
-        cur.setDate(cur.getDate() + skip);
-        while (cur <= windowEnd) { push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
-
-      } else if (item.recurring === 'weekdays') {
+      if (r.freq === 'daily') {
         const cur = new Date(effectiveStart);
         while (cur <= windowEnd) {
-          const d = cur.getDay();
-          if (d !== 0 && d !== 6) dates.push(fmt(cur));
-          cur.setDate(cur.getDate() + 1);
+          if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
+          dates.push(fmt(cur));
+          cur.setDate(cur.getDate() + r.interval);
         }
-
-      } else if (item.recurring === 'biweekly') {
-        // Walk forward from origin in 14-day steps until we reach effectiveStart
+      } else if (r.freq === 'weekly') {
+        const targetDays = (r.days && r.days.length > 0) ? r.days : [origin.getDay()];
+        // For each interval-week boundary, emit all target days within that week
+        // Walk from origin week forward in interval-week steps
+        const originWeekStart = new Date(origin);
+        originWeekStart.setDate(origin.getDate() - origin.getDay());
+        const cur = new Date(originWeekStart);
+        while (cur <= windowEnd) {
+          for (const dayIdx of [...targetDays].sort((a, b) => a - b)) {
+            const d = new Date(cur);
+            d.setDate(cur.getDate() + dayIdx);
+            push(d);
+          }
+          if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
+          cur.setDate(cur.getDate() + r.interval * 7);
+        }
+      } else if (r.freq === 'monthly') {
+        const useNthWeekday = r.days && r.days.length > 0;
+        if (!useNthWeekday) {
+          // On the same day number
+          const dayNum = origin.getDate();
+          const cur = new Date(effectiveStart.getFullYear(), effectiveStart.getMonth(), dayNum);
+          if (cur < effectiveStart) cur.setMonth(cur.getMonth() + 1);
+          while (cur <= windowEnd) {
+            push(new Date(cur));
+            if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
+            cur.setMonth(cur.getMonth() + r.interval);
+            cur.setDate(dayNum);
+          }
+        } else {
+          // On the Nth weekday of the month
+          const targetWeekday = origin.getDay();
+          const nth = Math.ceil(origin.getDate() / 7);
+          let year = effectiveStart.getFullYear();
+          let month = effectiveStart.getMonth();
+          while (true) {
+            // Find the nth targetWeekday in year/month
+            const first = new Date(year, month, 1);
+            const firstDow = first.getDay();
+            let dayOfMonth = ((targetWeekday - firstDow + 7) % 7) + 1 + (nth - 1) * 7;
+            const candidate = new Date(year, month, dayOfMonth);
+            if (candidate.getMonth() === month) {
+              push(candidate);
+            }
+            if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
+            month += r.interval;
+            if (month > 11) { year += Math.floor(month / 12); month = month % 12; }
+            if (new Date(year, month, 1) > windowEnd) break;
+          }
+        }
+      } else if (r.freq === 'yearly') {
         const cur = new Date(origin);
-        while (cur < effectiveStart) cur.setDate(cur.getDate() + 14);
-        while (cur <= windowEnd) { push(new Date(cur)); cur.setDate(cur.getDate() + 14); }
-
-      } else if (item.recurring === 'monthly') {
-        const day = origin.getDate();
-        const cur = new Date(effectiveStart.getFullYear(), effectiveStart.getMonth(), day);
-        if (cur < effectiveStart) cur.setMonth(cur.getMonth() + 1);
+        while (cur < effectiveStart) cur.setFullYear(cur.getFullYear() + r.interval);
         while (cur <= windowEnd) {
           push(new Date(cur));
-          cur.setMonth(cur.getMonth() + 1);
-          cur.setDate(day);
+          if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
+          cur.setFullYear(cur.getFullYear() + r.interval);
         }
       }
 
@@ -142,6 +218,10 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
         if (!map[d]) map[d] = [];
         map[d].push(p);
       }
+    }
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    for (const d of Object.keys(map)) {
+      map[d].sort((a, b) => toMin(a.item.time!) - toMin(b.item.time!));
     }
     return map;
   }, [planItems, recurringDays]);
@@ -310,10 +390,10 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
               return (
                 <div
                   key={dateStr}
-                  className={`border-r border-white/5 last:border-r-0 ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
+                  className={`border-r border-white/5 last:border-r-0 min-w-0 ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
                   style={{ height: '72px' }}
                 >
-                  <div className="flex flex-col gap-1 p-1 h-full overflow-visible">
+                  <div className="flex flex-row gap-1 p-1 h-full">
                     {dayItems.map(({ item, path }) => {
                       const dur = item.duration ?? 30;
                       const colors = priorityColor(item.priority);
@@ -321,10 +401,10 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                       const isPinned = activePopup === popupKey;
                       const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
                       return (
-                        <div key={item.id} className="relative group shrink-0">
+                        <div key={item.id} className="relative group flex-1 min-w-0">
                           <button
                             onClick={() => setActivePopup(isPinned ? null : popupKey)}
-                            className={`w-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
+                            className={`w-full h-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
                           >
                             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                             <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
@@ -362,7 +442,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                                 {item.recurring && (
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-[11px] font-bold text-emerald-400/70 uppercase tracking-wider">
-                                      ↻ {item.recurring}
+                                      ↻ {recurringLabel(item.recurring)}
                                     </div>
                                     <div className="text-[10px] text-white/25 font-medium pl-0.5">
                                       started {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -415,16 +495,39 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
           {Array.from({ length: 11 }, (_, i) => i + 10).map(hour => (
             <div key={hour} className="grid border-b border-white/[0.04]" style={{ gridTemplateColumns: '52px repeat(7, 1fr)' }}>
               {/* Gutter */}
-              <div className="sticky left-0 z-10 border-r border-white/5 bg-[#0b0f1a] flex items-start justify-end pr-2.5 pt-1.5" style={{ height: '56px' }}>
+              <div className="sticky left-0 z-10 border-r border-white/5 bg-[#0b0f1a] flex items-start justify-end pr-2.5 pt-1.5" style={{ height: '80px' }}>
                 <span className="text-[11px] font-mono text-white/15 whitespace-nowrap">{pad(hour)}:00</span>
               </div>
               {weekDays.map((day, idx) => {
                 const dateStr = getDateStr(day);
                 const isToday = dateStr === getDateStr(new Date());
-                const dayItems = (byDate[dateStr] || []).filter(({ item }) => {
-                  const h = parseInt(item.time!.split(':')[0], 10);
-                  return h === hour;
+                // Items that intersect this hour (start before hour end, end after hour start)
+                const hourStart = hour * 60;
+                const hourEnd = hourStart + 60;
+                const PX_PER_SECTION = 20; // 80px / 4 sections per hour
+                const allDayItems = byDate[dateStr] || [];
+                const cellSegments = allDayItems.flatMap(({ item, path }) => {
+                  const startMin = timeToMinutes(item.time!);
+                  const endMin = startMin + (item.duration ?? 30);
+                  if (startMin >= hourEnd || endMin <= hourStart) return [];
+                  const segStartMin = Math.max(startMin, hourStart) - hourStart; // 0–59
+                  const segEndMin = Math.min(endMin, hourEnd) - hourStart;       // 1–60
+                  const startSection = Math.floor(segStartMin / 15);
+                  const endSection = Math.floor((segEndMin - 1) / 15);
+                  const topPx = startSection * PX_PER_SECTION;
+                  const heightPx = (endSection - startSection + 1) * PX_PER_SECTION;
+                  return [{ item, path, topPx, heightPx, startMin, endMin }];
                 });
+
+                // Greedy column assignment based on time overlap
+                const colEnds: number[] = [];
+                const colAssign = cellSegments.map(({ startMin, endMin }) => {
+                  let col = colEnds.findIndex(e => e <= startMin);
+                  if (col === -1) { col = colEnds.length; colEnds.push(endMin); }
+                  else { colEnds[col] = endMin; }
+                  return col;
+                });
+                const numCols = Math.max(1, colEnds.length);
 
                 // Now marker: show only within hours 10–20 for today
                 const nowHour = now.getHours();
@@ -437,9 +540,14 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                 return (
                   <div
                     key={dateStr}
-                    className={`border-r border-white/5 last:border-r-0 relative ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
-                    style={{ height: '56px' }}
+                    className={`border-r border-white/5 last:border-r-0 relative min-w-0 ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
+                    style={{ height: '80px' }}
                   >
+                    {/* 15-min section dividers */}
+                    {[1, 2, 3].map(s => (
+                      <div key={s} className="absolute left-0 right-0 border-t border-white/[0.03] pointer-events-none" style={{ top: `${s * PX_PER_SECTION}px` }} />
+                    ))}
+
                     {/* Now marker */}
                     {showNow && (
                       <div
@@ -451,18 +559,24 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                       </div>
                     )}
 
-                    <div className="flex flex-col gap-1 p-1 h-full overflow-visible">
-                      {dayItems.map(({ item, path }) => {
+                    {cellSegments.map(({ item, path, topPx, heightPx }, i) => {
                         const dur = item.duration ?? 30;
                         const colors = priorityColor(item.priority);
                         const popupKey = `plan-${item.id}`;
                         const isPinned = activePopup === popupKey;
                         const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
+                        const col = colAssign[i];
+                        const leftPct = (col / numCols) * 100;
+                        const widthPct = (1 / numCols) * 100;
                         return (
-                          <div key={item.id} className="relative group shrink-0">
+                          <div
+                            key={`${item.id}-${hour}`}
+                            className="absolute group"
+                            style={{ top: `${topPx}px`, height: `${heightPx}px`, left: `${leftPct}%`, width: `${widthPct}%`, padding: '1px' }}
+                          >
                             <button
                               onClick={() => setActivePopup(isPinned ? null : popupKey)}
-                              className={`w-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
+                              className={`w-full h-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
                             >
                               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                               <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
@@ -500,7 +614,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                                   {item.recurring && (
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-[11px] font-bold text-emerald-400/70 uppercase tracking-wider">
-                                        ↻ {item.recurring}
+                                        ↻ {recurringLabel(item.recurring)}
                                       </div>
                                       <div className="text-[10px] text-white/25 font-medium pl-0.5">
                                         started {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -543,7 +657,6 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                           </div>
                         );
                       })}
-                    </div>
                   </div>
                 );
               })}
@@ -568,10 +681,10 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
               return (
                 <div
                   key={dateStr}
-                  className={`border-r border-white/5 last:border-r-0 ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
+                  className={`border-r border-white/5 last:border-r-0 min-w-0 ${isToday ? 'bg-violet-500/[0.015]' : ''}`}
                   style={{ height: '72px' }}
                 >
-                  <div className="flex flex-col gap-1 p-1 h-full overflow-visible">
+                  <div className="flex flex-row gap-1 p-1 h-full">
                     {dayItems.map(({ item, path }) => {
                       const dur = item.duration ?? 30;
                       const colors = priorityColor(item.priority);
@@ -579,10 +692,10 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                       const isPinned = activePopup === popupKey;
                       const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
                       return (
-                        <div key={item.id} className="relative group shrink-0">
+                        <div key={item.id} className="relative group flex-1 min-w-0">
                           <button
                             onClick={() => setActivePopup(isPinned ? null : popupKey)}
-                            className={`w-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
+                            className={`w-full h-full rounded border ${colors.badge} overflow-hidden flex flex-col px-2 py-0.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-violet-400/50' : ''}`}
                           >
                             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                             <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
@@ -620,7 +733,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                                 {item.recurring && (
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-[11px] font-bold text-emerald-400/70 uppercase tracking-wider">
-                                      ↻ {item.recurring}
+                                      ↻ {recurringLabel(item.recurring)}
                                     </div>
                                     <div className="text-[10px] text-white/25 font-medium pl-0.5">
                                       started {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}

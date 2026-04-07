@@ -43,6 +43,15 @@ export interface FinancialEntry {
   timestamp: number;
 }
 
+export interface RecurringRule {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  interval: number;        // every N units, minimum 1
+  days?: number[];         // 0=Sun,1=Mon…6=Sat — used when freq='weekly'
+  endType: 'never' | 'count' | 'date';
+  endCount?: number;       // used when endType='count'
+  endDate?: string;        // YYYY-MM-DD, used when endType='date'
+}
+
 export interface CanvasItem {
   id: string;
   createdAt?: number;   // unix ms timestamp — set once on creation
@@ -56,7 +65,7 @@ export interface CanvasItem {
   date?: string; // ISO date string YYYY-MM-DD
   time?: string; // HH:MM (24-hour)
   duration?: number; // minutes
-  recurring?: 'daily' | 'weekly' | 'weekdays' | 'biweekly' | 'monthly';
+  recurring?: RecurringRule;
   priority?: Priority;
   tags?: string[];
   timer?: CanvasTimer;

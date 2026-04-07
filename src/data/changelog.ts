@@ -6,6 +6,55 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.1',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Recurrence rules are now structured objects supporting frequency, interval, specific weekdays, and end conditions (never / after N times / by date).',
+          'New recurrence builder UI in the schedule dropdown: frequency chips, interval input, weekday toggles, day-of-month vs nth-weekday for monthly, and end condition selector.',
+          'Human-readable recurrence summary shown inline on the schedule button (e.g. "Weekly Mon Wed Fri · 5×").',
+          'PlanBoard occurrence engine updated for the new rule structure; legacy string values are automatically migrated.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.0',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Schedule control: date, time, duration, and recurrence are now combined into a single button with an inline dropdown panel.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.9',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          'Text blocks: bottom content no longer hidden behind the tag strip when editing — textarea now scrolls above the tag bar.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v1.9.8',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          'Plan view: multiple blocks in the same time slot now render side by side instead of overlapping.',
+          'Plan view: blocks no longer bleed outside their date column boundary.',
+          'Plan view: blocks are now absolutely positioned by time — they snap to 15-min sections, span their full duration across hour rows, and sit side-by-side when overlapping.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v1.9.7',
     sections: [
       {

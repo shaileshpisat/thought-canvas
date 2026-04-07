@@ -9,6 +9,39 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.0.1
+
+### Enhancements
+- Recurrence rules are now structured objects (`RecurringRule`) supporting frequency, interval, specific weekdays, and end conditions (never / after N times / by date).
+- New recurrence builder UI in the schedule dropdown: frequency chips (Daily/Weekly/Monthly/Yearly), interval input, weekday toggles for weekly, day-of-month vs nth-weekday for monthly, and end condition selector.
+- Human-readable recurrence summary shown inline on the schedule button (e.g. "Weekly Mon Wed Fri · 5×").
+- PlanBoard occurrence engine updated to handle the new `RecurringRule` structure with full interval, multi-day, and end-condition support; legacy string values are automatically migrated.
+
+---
+
+## v2.0.0
+
+### Enhancements
+- Schedule control: date, time, duration, and recurrence are now combined into a single button with an inline dropdown panel.
+
+---
+
+## v1.9.9
+
+### Bug Fixes
+- Text blocks: bottom content no longer hidden behind the tag strip when editing — textarea now scrolls above the tag bar.
+
+---
+
+## v1.9.8
+
+### Bug Fixes
+- Plan view: multiple blocks in the same time slot now render side by side instead of overlapping.
+- Plan view: blocks no longer bleed outside their date column boundary.
+- Plan view: blocks are now absolutely positioned by time — they snap to 15-min sections, span their full duration across hour rows, and sit side-by-side when overlapping.
+
+---
+
 ## v1.9.7
 
 ### Enhancements
