@@ -6,6 +6,30 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.3',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Plan Board now shows date-only blocks (with "Show on Plan Board" checked) in the pre-block row, without requiring time or duration.',
+          'Blocks with date + time + duration always appear on Plan Board automatically — no checkbox needed.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.2',
+    sections: [
+      {
+        heading: 'Enhancements',
+        changes: [
+          'Schedule dropdown now has "Show on Plan Board" and "Show on Week Board" checkboxes — blocks only appear on a board when explicitly opted in.',
+          'New Week Board view: shows opted-in blocks as simple cards stacked under their date column, sorted by time. Accessible from the main toolbar.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.0.1',
     sections: [
       {

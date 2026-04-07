@@ -16,6 +16,7 @@ import {
     Download,
     Upload,
     CalendarDays,
+    CalendarRange,
     ClipboardList,
     ChevronLeft,
     Search,
@@ -39,6 +40,7 @@ import { SearchPanel } from './SearchPanel';
 import { DateFilterPanel } from './DateFilterPanel';
 import { CalendarBoard } from './CalendarBoard';
 import { PlanBoard } from './PlanBoard';
+import { WeekBoard } from './WeekBoard';
 import { QuickEntryBar, SubCanvasSuggestion } from './QuickEntryBar';
 import { getAllSubCanvases } from '@/utils/searchUtils';
 import { CHANGELOG } from '@/data/changelog';
@@ -118,7 +120,7 @@ export const Canvas: React.FC = () => {
     });
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
-    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'week' | 'inbox' | 'archive'>('canvas');
     const [inboxResurfaceFilter, setInboxResurfaceFilter] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
@@ -785,6 +787,15 @@ export const Canvas: React.FC = () => {
                         setViewMode('canvas');
                     }}
                 />
+            ) : viewMode === 'week' ? (
+                <WeekBoard
+                    items={state.items}
+                    onClose={() => setViewMode('canvas')}
+                    onNavigateToItem={(item, path) => {
+                        setNavigationPath(path);
+                        setViewMode('canvas');
+                    }}
+                />
             ) : viewMode === 'inbox' ? (
                 /* viewMode === 'inbox' */
                 <div className="absolute inset-0 w-full h-full">
@@ -1066,6 +1077,18 @@ export const Canvas: React.FC = () => {
                     >
                         <ClipboardList size={20} className={viewMode === 'plan' ? 'text-violet-400' : ''} />
                         <span className="text-[9px] uppercase font-black tracking-widest">Plan</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('week')}
+                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
+                            viewMode === 'week'
+                                ? 'bg-white/10 text-white shadow-inner'
+                                : 'text-white/30 hover:text-white/60'
+                        }`}
+                        title="Switch to Week Board"
+                    >
+                        <CalendarRange size={20} className={viewMode === 'week' ? 'text-sky-400' : ''} />
+                        <span className="text-[9px] uppercase font-black tracking-widest">Week</span>
                     </button>
                 </div>
 

@@ -1178,6 +1178,35 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                         </>
                                     );
                                 })()}
+                                {/* Show on boards */}
+                                {item.date && (
+                                    <>
+                                        <div className="border-t border-white/8 mx-2 mt-1" />
+                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30">Show on</div>
+                                        <div className="px-3 pb-3 flex flex-col gap-2">
+                                            <label className="flex items-center gap-2 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.showOnPlanBoard ?? false}
+                                                    onChange={e => onUpdate(item.id, { showOnPlanBoard: e.target.checked })}
+                                                    className="w-3.5 h-3.5 rounded accent-violet-500 cursor-pointer"
+                                                />
+                                                <span className="text-[11px] text-white/50 group-hover:text-white/70 transition-colors">Plan Board</span>
+                                                <span className="text-[9px] text-white/20 ml-auto">time-slot view</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer group">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.showOnWeekBoard ?? false}
+                                                    onChange={e => onUpdate(item.id, { showOnWeekBoard: e.target.checked })}
+                                                    className="w-3.5 h-3.5 rounded accent-sky-500 cursor-pointer"
+                                                />
+                                                <span className="text-[11px] text-white/50 group-hover:text-white/70 transition-colors">Week Board</span>
+                                                <span className="text-[9px] text-white/20 ml-auto">date column view</span>
+                                            </label>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                         <input ref={dateInputRef} type="date" className="absolute opacity-0 w-0 h-0 pointer-events-none" value={item.date || ''} onChange={(e) => onUpdate(item.id, { date: e.target.value || undefined })} />

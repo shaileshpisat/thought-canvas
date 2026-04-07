@@ -7,7 +7,8 @@
       "Bash(grep '\"\"version\"\"' \"c:/Work/Git/git-ace/black-board/package.json\")",
       "Read(//c/Users/sppis/.claude/projects/c--Work-Git-git-ace-black-board/memory/**)",
       "Read(//c/Users/sppis/.claude/**)",
-      "Bash(wc -l /c/Work/Git/git-ace/black-board/src/components/*.tsx)"
+      "Bash(wc -l /c/Work/Git/git-ace/black-board/src/components/*.tsx)",
+      "Bash(npx next:*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\sppis\\.claude"

@@ -79,13 +79,15 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
     });
   }, [weekStart]);
 
-  // Only collect items with date + time + duration
+  // Collect items that either have date+time+duration (always shown) or showOnPlanBoard+date
   const planItems = useMemo(() => {
     const result: PlanItemData[] = [];
 
     const traverse = (itemList: CanvasItem[], path: string[]) => {
       for (const item of itemList) {
-        if (item.date && item.time && item.duration != null) {
+        const hasSchedule = item.date && item.time && item.duration != null;
+        const hasDateOnly = item.date && item.showOnPlanBoard;
+        if (hasSchedule || hasDateOnly) {
           result.push({ item, path });
         }
         if (item.children) traverse(item.children, [...path, item.id]);
@@ -219,9 +221,9 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
         map[d].push(p);
       }
     }
-    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+    const toMin = (t: string | undefined) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
     for (const d of Object.keys(map)) {
-      map[d].sort((a, b) => toMin(a.item.time!) - toMin(b.item.time!));
+      map[d].sort((a, b) => toMin(a.item.time) - toMin(b.item.time));
     }
     return map;
   }, [planItems, recurringDays]);
@@ -383,7 +385,8 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
               const dateStr = getDateStr(day);
               const isToday = dateStr === getDateStr(new Date());
               const dayItems = (byDate[dateStr] || []).filter(({ item }) => {
-                const h = parseInt(item.time!.split(':')[0], 10);
+                if (!item.time) return true; // date-only items go in pre-block
+                const h = parseInt(item.time.split(':')[0], 10);
                 return h < 10;
               });
               const popupSide = idx >= 4 ? 'right-full mr-2' : 'left-full ml-2';
@@ -411,9 +414,11 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                               {item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}
                               {label}
                             </span>
-                            <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
-                              {item.time} · {formatDuration(dur)}
-                            </span>
+                            {item.time && (
+                              <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
+                                {item.time}{item.duration ? ` · ${formatDuration(dur)}` : ''}
+                              </span>
+                            )}
                           </button>
                           {/* Popup */}
                           <div
@@ -429,16 +434,17 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                                 </div>
                               )}
                               <div className="flex flex-wrap items-center gap-2 mb-4">
-                                <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-white/50">
-                                  <Clock size={11} className="text-violet-400" />
-                                  {item.time} — {(() => {
-                                    const endMin = timeToMinutes(item.time!) + (item.duration ?? 0);
-                                    return `${pad(Math.floor(endMin / 60))}:${pad(endMin % 60)}`;
-                                  })()}
-                                </div>
-                                <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-500/15 border border-violet-500/20 text-[11px] font-bold text-violet-300/70">
-                                  {formatDuration(item.duration ?? 0)}
-                                </div>
+                                {item.time && (
+                                  <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-white/50">
+                                    <Clock size={11} className="text-violet-400" />
+                                    {item.time}{item.duration != null && ` — ${pad(Math.floor((timeToMinutes(item.time) + item.duration) / 60))}:${pad((timeToMinutes(item.time) + item.duration) % 60)}`}
+                                  </div>
+                                )}
+                                {item.duration != null && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-500/15 border border-violet-500/20 text-[11px] font-bold text-violet-300/70">
+                                    {formatDuration(item.duration)}
+                                  </div>
+                                )}
                                 {item.recurring && (
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-[11px] font-bold text-emerald-400/70 uppercase tracking-wider">
@@ -507,7 +513,8 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                 const PX_PER_SECTION = 20; // 80px / 4 sections per hour
                 const allDayItems = byDate[dateStr] || [];
                 const cellSegments = allDayItems.flatMap(({ item, path }) => {
-                  const startMin = timeToMinutes(item.time!);
+                  if (!item.time) return []; // date-only items don't appear in hourly slots
+                  const startMin = timeToMinutes(item.time);
                   const endMin = startMin + (item.duration ?? 30);
                   if (startMin >= hourEnd || endMin <= hourStart) return [];
                   const segStartMin = Math.max(startMin, hourStart) - hourStart; // 0–59
@@ -674,7 +681,8 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
               const dateStr = getDateStr(day);
               const isToday = dateStr === getDateStr(new Date());
               const dayItems = (byDate[dateStr] || []).filter(({ item }) => {
-                const h = parseInt(item.time!.split(':')[0], 10);
+                if (!item.time) return false;
+                const h = parseInt(item.time.split(':')[0], 10);
                 return h > 20;
               });
               const popupSide = idx >= 4 ? 'right-full mr-2' : 'left-full ml-2';
@@ -702,9 +710,11 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                               {item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}
                               {label}
                             </span>
-                            <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
-                              {item.time} · {formatDuration(dur)}
-                            </span>
+                            {item.time && (
+                              <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
+                                {item.time}{item.duration ? ` · ${formatDuration(dur)}` : ''}
+                              </span>
+                            )}
                           </button>
                           {/* Popup */}
                           <div
@@ -720,16 +730,17 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                                 </div>
                               )}
                               <div className="flex flex-wrap items-center gap-2 mb-4">
-                                <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-white/50">
-                                  <Clock size={11} className="text-violet-400" />
-                                  {item.time} — {(() => {
-                                    const endMin = timeToMinutes(item.time!) + (item.duration ?? 0);
-                                    return `${pad(Math.floor(endMin / 60))}:${pad(endMin % 60)}`;
-                                  })()}
-                                </div>
-                                <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-500/15 border border-violet-500/20 text-[11px] font-bold text-violet-300/70">
-                                  {formatDuration(item.duration ?? 0)}
-                                </div>
+                                {item.time && (
+                                  <div className="flex items-center gap-1.5 text-sm font-mono font-bold text-white/50">
+                                    <Clock size={11} className="text-violet-400" />
+                                    {item.time}{item.duration != null && ` — ${pad(Math.floor((timeToMinutes(item.time) + item.duration) / 60))}:${pad((timeToMinutes(item.time) + item.duration) % 60)}`}
+                                  </div>
+                                )}
+                                {item.duration != null && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-violet-500/15 border border-violet-500/20 text-[11px] font-bold text-violet-300/70">
+                                    {formatDuration(item.duration)}
+                                  </div>
+                                )}
                                 {item.recurring && (
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-[11px] font-bold text-emerald-400/70 uppercase tracking-wider">

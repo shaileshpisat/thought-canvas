@@ -66,6 +66,8 @@ export interface CanvasItem {
   time?: string; // HH:MM (24-hour)
   duration?: number; // minutes
   recurring?: RecurringRule;
+  showOnPlanBoard?: boolean;
+  showOnWeekBoard?: boolean;
   priority?: Priority;
   tags?: string[];
   timer?: CanvasTimer;
