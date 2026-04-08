@@ -1030,7 +1030,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     </>
                                 )}
                                 {/* Recurring section */}
-                                {item.date && item.time && item.duration && (() => {
+                                {item.date && (() => {
                                     const rule = item.recurring;
                                     const originDay = item.date ? new Date(item.date + 'T00:00:00').getDay() : 1;
                                     const defaultRule: import('@/types/canvas').RecurringRule = { freq: 'weekly', interval: 1, days: [originDay], endType: 'never' };
@@ -1388,7 +1388,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             }
                         `}
                     >
-                        {item.recurring && <span className="mr-1 opacity-60">↻</span>}{dateLabel}{item.time && <span className="ml-1 opacity-70">{item.time}{item.duration && <>–{addMinutesToTime(item.time, item.duration)}</>}</span>}
+                        {item.recurring && <span className="mr-1 opacity-60">↻</span>}{dateLabel}{item.time && <span className="ml-1 opacity-70">{item.time}{item.duration && <>–{addMinutesToTime(item.time, item.duration)}</>}</span>}{(item.showOnPlanBoard || item.showOnWeekBoard) && <span className="ml-1.5 inline-flex items-center gap-0.5">{item.showOnPlanBoard && <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-400" title="Shown on Plan Board" />}{item.showOnWeekBoard && <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400" title="Shown on Week Board" />}</span>}
                     </div>
                 )}
 

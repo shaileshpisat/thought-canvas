@@ -9,6 +9,23 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.0.14
+
+### Improvements
+
+- Repeat option in block date picker now shows as soon as a date is set, without requiring a time or duration.
+- Pre-block date badge now shows a violet dot when "Show on Plan Board" is checked and a sky dot when "Show on Week Board" is checked.
+
+---
+
+## v2.0.13
+
+### Bug Fixes
+
+- Fixed Plan Board showing multiple popups when clicking a block that repeats daily or multiple times per week.
+
+---
+
 ## v2.0.12
 
 ### Tweaks

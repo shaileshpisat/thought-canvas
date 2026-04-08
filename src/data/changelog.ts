@@ -6,6 +6,29 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.14',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          'Repeat option in block date picker now shows as soon as a date is set, without requiring a time or duration.',
+          'Pre-block date badge now shows a violet dot when "Show on Plan Board" is checked and a sky dot when "Show on Week Board" is checked.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.13',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          'Fixed Plan Board showing multiple popups when clicking a block that repeats daily or multiple times per week.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.0.12',
     sections: [
       {

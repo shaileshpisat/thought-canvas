@@ -400,7 +400,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                     {dayItems.map(({ item, path }) => {
                       const dur = item.duration ?? 30;
                       const colors = priorityColor(item.priority);
-                      const popupKey = `plan-${item.id}`;
+                      const popupKey = `plan-${item.id}-${dateStr}`;
                       const isPinned = activePopup === popupKey;
                       const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
                       return (
@@ -569,7 +569,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                     {cellSegments.map(({ item, path, topPx, heightPx }, i) => {
                         const dur = item.duration ?? 30;
                         const colors = priorityColor(item.priority);
-                        const popupKey = `plan-${item.id}`;
+                        const popupKey = `plan-${item.id}-${dateStr}`;
                         const isPinned = activePopup === popupKey;
                         const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
                         const col = colAssign[i];
@@ -696,7 +696,7 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                     {dayItems.map(({ item, path }) => {
                       const dur = item.duration ?? 30;
                       const colors = priorityColor(item.priority);
-                      const popupKey = `plan-${item.id}`;
+                      const popupKey = `plan-${item.id}-${dateStr}`;
                       const isPinned = activePopup === popupKey;
                       const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
                       return (
