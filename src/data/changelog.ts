@@ -6,6 +6,107 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.12',
+    sections: [
+      {
+        heading: 'Tweaks',
+        changes: [
+          '"Move into canvas" tree picker now shows connecting elbow lines between parent and child canvases for easier readability.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.11',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          '"Move into canvas" picker now shows all canvases across the entire tree — with a search box and depth-indented parent breadcrumbs — instead of only sibling canvases at the current level.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.10',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          '[[block]] links now correctly intercept clicks — onPointerDown stops Framer Motion\'s drag tracking so the link navigates instead of being swallowed.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.9',
+    sections: [
+      {
+        heading: 'Bug Fixes',
+        changes: [
+          'Tag suggestions dropdown no longer appears behind the timer badge when adding a tag to a block.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.8',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          '[[block]] links now pan the canvas to center the linked item and illuminate it with a violet glow on click.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.7',
+    sections: [
+      {
+        heading: 'New Features',
+        changes: [
+          'Settings → Tags master list: view all tags with item usage counts, rename a tag across all items, and delete unused tags (count = 0).',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.6',
+    sections: [
+      {
+        heading: 'Tweaks',
+        changes: [
+          'Removed the duplicate "Week" toolbar button (Week Board). Items with "Show on Week Board" enabled now appear as priority-colored cards in the main Week (calendar) view instead.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.5',
+    sections: [
+      {
+        heading: 'Fixes',
+        changes: [
+          'In Inbox view, toolbar Text/Image/Link buttons now add items to Inbox instead of the root canvas.',
+          'In Archive view, toolbar add buttons now show a "Can\'t add to Archives" toast.',
+          'Canvas sub-canvas button is blocked in Inbox view with a clear message.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.4',
+    sections: [
+      {
+        heading: 'Tweaks',
+        changes: [
+          'Manual Logs section on canvas items now defaults to collapsed instead of expanded.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.0.3',
     sections: [
       {

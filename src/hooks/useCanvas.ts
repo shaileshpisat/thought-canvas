@@ -441,6 +441,16 @@ export const useCanvas = () => {
     setState(prev => ({ ...prev, wallets }));
   }, []);
 
+  const renameTagGlobally = useCallback((oldTag: string, newTag: string) => {
+    const renameInItems = (items: CanvasItem[]): CanvasItem[] =>
+      items.map(item => ({
+        ...item,
+        tags: item.tags?.map(t => t === oldTag ? newTag : t),
+        children: item.children ? renameInItems(item.children) : item.children,
+      }));
+    setState(prev => ({ ...prev, items: renameInItems(prev.items) }));
+  }, []);
+
   const moveFromArchiveToCanvas = useCallback(
     (item: CanvasItem, toPath: string[], newX?: number, newY?: number) => {
       setState((prev) => {
@@ -483,5 +493,6 @@ export const useCanvas = () => {
     updateArchiveItem,
     moveFromArchiveToCanvas,
     updateWallets,
+    renameTagGlobally,
   };
 };

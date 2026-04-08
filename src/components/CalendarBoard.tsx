@@ -24,6 +24,23 @@ interface CalendarData {
   canvasesOnDay: Record<string, Set<string>>; // day -> set of active canvas IDs
 }
 
+const PRIORITY_CFG: Record<string, { bar: string; text: string; badge: string }> = {
+  'very-high': { bar: 'bg-rose-500',   text: 'text-rose-400',   badge: 'bg-rose-500/15 border-rose-500/25' },
+  'high':      { bar: 'bg-orange-500', text: 'text-orange-400', badge: 'bg-orange-500/15 border-orange-500/25' },
+  'medium':    { bar: 'bg-amber-500',  text: 'text-amber-400',  badge: 'bg-amber-500/15 border-amber-500/25' },
+  'low':       { bar: 'bg-sky-500',    text: 'text-sky-400',    badge: 'bg-sky-500/15 border-sky-500/25' },
+  'very-low':  { bar: 'bg-slate-500',  text: 'text-slate-400',  badge: 'bg-slate-500/15 border-slate-500/25' },
+};
+const DEFAULT_PRIORITY_CFG = { bar: 'bg-violet-500', text: 'text-violet-300', badge: 'bg-violet-500/15 border-violet-500/25' };
+const priorityColor = (p?: string) => (p && PRIORITY_CFG[p]) ? PRIORITY_CFG[p] : DEFAULT_PRIORITY_CFG;
+
+function formatTime(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 function financialNet(financials: FinancialEntry[]): number {
     return financials.reduce((sum, f) => {
         const positive = f.type === 'income' || f.type === 'inflow' || f.type === 'redemption';
@@ -402,8 +419,8 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                   return (
                     <div key={dateStr} className={`border-r border-white/5 last:border-r-0 ${isToday ? 'bg-sky-500/[0.02]' : ''}`}>
 
-                      {/* All-day row: green dots + canvases + tags */}
-                      <div className="border-b border-white/[0.06] px-2 py-1.5 flex flex-wrap gap-1 items-center bg-white/[0.01]" style={{ minHeight: '52px' }}>
+                      {/* All-day row: scheduled cards + green dots + canvases + tags */}
+                      <div className="border-b border-white/[0.06] px-2 py-1.5 flex flex-wrap gap-1 items-start bg-white/[0.01]" style={{ minHeight: '52px' }}>
                         {[...itemsOnDay].sort((a, b) => {
                             if (a.item.time && b.item.time) return a.item.time.localeCompare(b.item.time);
                             if (a.item.time) return -1;
@@ -411,6 +428,46 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                             return 0;
                           }).map(({ item, path }) => {
                           const isPinned = pinnedPopup === `green-${item.id}`;
+                          if (item.showOnWeekBoard) {
+                            const colors = priorityColor(item.priority);
+                            const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0] || 'Untitled';
+                            return (
+                              <div key={item.id} className="relative group">
+                                <button
+                                  onClick={() => setPinnedPopup(isPinned ? null : `green-${item.id}`)}
+                                  className={`rounded-lg border ${colors.badge} overflow-hidden flex flex-col px-2 py-1 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-sky-400/50' : ''}`}
+                                >
+                                  <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
+                                  <span className={`text-[10px] font-bold leading-tight truncate pl-1 max-w-[100px] ${colors.text}`}>
+                                    {item.recurring && <span className="text-emerald-400/80 mr-1 text-[9px]">↻</span>}
+                                    {label}
+                                  </span>
+                                  {item.time && (
+                                    <span className="text-[9px] text-white/30 font-mono pl-1 leading-tight mt-0.5">
+                                      {formatTime(item.time)}
+                                    </span>
+                                  )}
+                                </button>
+                                <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-64 ${isPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
+                                  <div className="bg-[#0b101c] p-4 rounded-[20px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
+                                    <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
+                                    <p className={`text-sm font-black mb-1 leading-snug truncate ${colors.text}`}>{label}</p>
+                                    {path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-2">in sub-canvas</div>}
+                                    {item.time && <div className="flex items-center gap-1 text-[11px] font-mono text-white/50 mb-2"><Clock size={10} className="text-violet-400" />{formatTime(item.time)}</div>}
+                                    {item.priority && <div className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider mb-2 ${colors.text}`}><Flag size={9} />{item.priority.replace('-', ' ')}</div>}
+                                    {item.tags && item.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mb-2">
+                                        {item.tags.map(t => <span key={t} className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] font-bold text-white/40 flex items-center gap-1"><Tag size={7} />{t}</span>)}
+                                      </div>
+                                    )}
+                                    <button onClick={() => { setPinnedPopup(null); onNavigateToItem(item, path); }} className={`mt-1 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg ${colors.badge} border text-[11px] font-semibold ${colors.text} hover:brightness-125 transition-all`}>
+                                      Show on Canvas
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
                             <div key={item.id} className="relative group flex items-center gap-0.5">
                               <button

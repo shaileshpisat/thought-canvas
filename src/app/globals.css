@@ -46,6 +46,18 @@ body {
   animation: search-highlight 2s ease-in-out forwards;
 }
 
+/* Block-link navigation highlight — sustained violet glow that fades out */
+@keyframes block-navigate-highlight {
+  0%   { box-shadow: 0 0  0px  0px rgba(167,139,250,0); outline: 2px solid rgba(167,139,250,0); }
+  8%   { box-shadow: 0 0 48px 16px rgba(167,139,250,0.75); outline: 2px solid rgba(167,139,250,0.9); }
+  40%  { box-shadow: 0 0 32px 10px rgba(167,139,250,0.55); outline: 2px solid rgba(167,139,250,0.7); }
+  70%  { box-shadow: 0 0 24px  8px rgba(167,139,250,0.35); outline: 2px solid rgba(167,139,250,0.4); }
+  100% { box-shadow: 0 0  0px  0px rgba(167,139,250,0);    outline: 2px solid rgba(167,139,250,0); }
+}
+.block-navigate-highlight {
+  animation: block-navigate-highlight 2.5s ease-in-out forwards;
+}
+
 /* Timer 15-min alert — two pulses of amber glow */
 @keyframes timer-alert {
   0%   { box-shadow: 0 0  0px  0px rgba(251,191,36,0); }

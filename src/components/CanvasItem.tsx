@@ -49,14 +49,15 @@ interface Props {
     canEject?: boolean;
     onEject?: () => void;
     onArchive?: () => void;
-    moveTargets?: ICanvasItem[]; // sibling canvas-type items to move into
-    onMoveInto?: (targetCanvasId: string) => void;
+    moveTargets?: { id: string; name: string; path: string[]; parentName?: string }[]; // all canvases in the tree
+    onMoveInto?: (targetPath: string[]) => void;
     // Timer support
     clockTick?: number;
     onToggleTimer?: (id: string) => void;
     onStopTimer?: (id: string) => void;
     isAlerting?: boolean;
     isHighlighted?: boolean;
+    isBlockNavHighlighted?: boolean;
     onLogAction?: (id: string, label: string) => void;
     onDeleteAction?: (id: string, actionId: string) => void;
     tagMaster?: string[];
@@ -167,6 +168,7 @@ function makeMdComponents(onNavigateToBlock?: (path: string[], itemId: string) =
                 return (
                     <button
                         className="text-violet-400 underline hover:text-violet-300 transition-colors decoration-dotted cursor-pointer"
+                        onPointerDown={e => e.stopPropagation()}
                         onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
                         onClick={e => { e.preventDefault(); e.stopPropagation(); onNavigateToBlock([], blockId); }}
                     >
@@ -261,7 +263,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], readOnly = false }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, isBlockNavHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], readOnly = false }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -270,6 +272,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [isRenaming, setIsRenaming] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [showMoveInto, setShowMoveInto] = useState(false);
+    const [moveIntoSearch, setMoveIntoSearch] = useState('');
     const [showPriority, setShowPriority] = useState(false);
     const [showSchedule, setShowSchedule] = useState(false);
     const [localSize, setLocalSize] = useState<{ width: number; height: number } | null>(null);
@@ -286,7 +289,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [finDesc, setFinDesc] = useState('');
     const [finType, setFinType] = useState<FinancialType>('expense');
     const [finWallet, setFinWallet] = useState('');
-    const [showManualLogs, setShowManualLogs] = useState(true);
+    const [showManualLogs, setShowManualLogs] = useState(false);
     const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
     const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
     const [isEditingCaption, setIsEditingCaption] = useState(false);
@@ -862,6 +865,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 relative w-full h-full glass rounded-xl overflow-visible transition-all duration-200
                 ${isAlerting ? 'timer-alert' : ''}
                 ${isHighlighted ? 'search-highlight' : ''}
+                ${isBlockNavHighlighted ? 'block-navigate-highlight' : ''}
                 ${isHovered
                     ? item.type === 'canvas'
                         ? 'ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/10'
@@ -1268,11 +1272,11 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </button>
                         )}
 
-                        {/* Move into a sibling canvas */}
+                        {/* Move into a canvas (tree picker) */}
                         {moveTargets && moveTargets.length > 0 && (
                             <div className="relative">
                                 <button
-                                    onClick={() => setShowMoveInto((v) => !v)}
+                                    onClick={() => { setShowMoveInto((v) => !v); setMoveIntoSearch(''); }}
                                     className={`p-1.5 transition-colors flex items-center gap-0.5 ${showMoveInto ? 'text-purple-400' : 'text-white/40 hover:text-purple-400'}`}
                                     title="Move into a canvas"
                                 >
@@ -1280,19 +1284,60 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                     <ChevronDown size={10} />
                                 </button>
                                 {showMoveInto && (
-                                    <div className="absolute top-full left-0 mt-1 z-[200] min-w-[140px] rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
+                                    <div className="absolute top-full left-0 mt-1 z-[200] min-w-[260px] max-h-[280px] flex flex-col rounded-xl shadow-2xl shadow-black/60 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-100"
                                         style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(20px)' }}>
-                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8">Move into</div>
-                                        {moveTargets.map((t) => (
-                                            <button
-                                                key={t.id}
-                                                onClick={() => { onMoveInto?.(t.id); setShowMoveInto(false); }}
-                                                className="w-full text-left px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-purple-500/15 transition-colors flex items-center gap-2"
-                                            >
-                                                <Layers size={11} className="text-purple-400 shrink-0" />
-                                                <span className="truncate">{t.content || 'Untitled Canvas'}</span>
-                                            </button>
-                                        ))}
+                                        <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-white/30 border-b border-white/8 shrink-0">Move into</div>
+                                        {/* Search input */}
+                                        <div className="px-2 py-1.5 border-b border-white/8 shrink-0">
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                placeholder="Search canvases…"
+                                                value={moveIntoSearch}
+                                                onChange={(e) => setMoveIntoSearch(e.target.value)}
+                                                className="w-full bg-white/5 rounded-md px-2 py-1 text-xs text-white/80 placeholder-white/25 outline-none focus:ring-1 focus:ring-purple-500/50"
+                                            />
+                                        </div>
+                                        {/* Canvas list */}
+                                        <div className="overflow-y-auto flex-1">
+                                            {(() => {
+                                                const q = moveIntoSearch.toLowerCase().trim();
+                                                const filtered = q
+                                                    ? moveTargets.filter((t) =>
+                                                        t.name.toLowerCase().includes(q) ||
+                                                        (t.parentName ?? '').toLowerCase().includes(q)
+                                                    )
+                                                    : moveTargets;
+                                                if (filtered.length === 0) {
+                                                    return (
+                                                        <div className="px-3 py-4 text-xs text-white/30 text-center">No canvases found</div>
+                                                    );
+                                                }
+                                                return filtered.map((t, i, arr) => {
+                                                    const depth = Math.max(0, t.path.length - 1);
+                                                    const isLast = i === arr.length - 1 || Math.max(0, arr[i + 1].path.length - 1) < depth;
+                                                    return (
+                                                        <button
+                                                            key={t.id}
+                                                            onClick={() => { onMoveInto?.(t.path); setShowMoveInto(false); setMoveIntoSearch(''); }}
+                                                            className="w-full text-left py-1.5 pr-3 text-xs text-white/70 hover:text-white hover:bg-purple-500/15 transition-colors flex items-center"
+                                                            style={{ paddingLeft: `${8 + depth * 16}px` }}
+                                                        >
+                                                            {depth > 0 && (
+                                                                <span className="relative shrink-0 mr-1.5" style={{ width: 14, height: 20 }}>
+                                                                    {/* vertical line */}
+                                                                    <span className="absolute left-0 top-0 bottom-0 w-px bg-white/15" style={{ bottom: isLast ? '50%' : 0 }} />
+                                                                    {/* horizontal elbow */}
+                                                                    <span className="absolute left-0 top-1/2 h-px bg-white/15" style={{ width: 10, transform: 'translateY(-50%)' }} />
+                                                                </span>
+                                                            )}
+                                                            <Layers size={11} className="text-purple-400 shrink-0 mr-1.5" />
+                                                            <span className="truncate">{t.name || 'Untitled Canvas'}</span>
+                                                        </button>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -1485,7 +1530,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 {/* Tags strip — visible when tags exist or card is hovered (not image — handled inline) */}
                 {item.type !== 'image' && (!!item.tags?.length || isHovered || isAddingTag) && (
                     <div
-                        className="absolute left-0 right-0 z-20 flex flex-nowrap items-center gap-1 px-2.5 py-1.5 rounded-b-xl overflow-x-auto"
+                        className={`absolute left-0 right-0 flex flex-nowrap items-center gap-1 px-2.5 py-1.5 rounded-b-xl ${isAddingTag && showTagSuggestions ? 'overflow-visible z-40' : 'overflow-x-auto z-20'}`}
                         style={{ bottom: item.type === 'canvas' ? 40 : 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)' }}
                         onMouseDown={(e) => e.stopPropagation()}
                     >

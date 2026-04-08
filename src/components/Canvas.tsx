@@ -16,7 +16,6 @@ import {
     Download,
     Upload,
     CalendarDays,
-    CalendarRange,
     ClipboardList,
     ChevronLeft,
     Search,
@@ -33,6 +32,7 @@ import {
     Archive,
     IndianRupee,
     Trash2,
+    Tag,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -40,7 +40,7 @@ import { SearchPanel } from './SearchPanel';
 import { DateFilterPanel } from './DateFilterPanel';
 import { CalendarBoard } from './CalendarBoard';
 import { PlanBoard } from './PlanBoard';
-import { WeekBoard } from './WeekBoard';
+
 import { QuickEntryBar, SubCanvasSuggestion } from './QuickEntryBar';
 import { getAllSubCanvases } from '@/utils/searchUtils';
 import { CHANGELOG } from '@/data/changelog';
@@ -102,6 +102,7 @@ export const Canvas: React.FC = () => {
         updateArchiveItem,
         moveFromArchiveToCanvas,
         updateWallets,
+        renameTagGlobally,
     } = useCanvas();
     const recycleBin = useRecycleBin();
     const [showRecycleBin, setShowRecycleBin] = React.useState(false);
@@ -110,8 +111,12 @@ export const Canvas: React.FC = () => {
     const [showSearch, setShowSearch] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showWalletMaster, setShowWalletMaster] = React.useState(false);
+    const [showTagMaster, setShowTagMaster] = React.useState(false);
+    const [editingTagNames, setEditingTagNames] = React.useState<Record<string, string>>({});
     const [showProfileMenu, setShowProfileMenu] = React.useState(false);
     const [highlightedItemId, setHighlightedItemId] = React.useState<string | null>(null);
+    const [blockNavItemId, setBlockNavItemId] = React.useState<string | null>(null);
+    const [canvasTranslate, setCanvasTranslate] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [recurringDays, setRecurringDays] = React.useState<number>(() => {
         try {
             const s = localStorage.getItem('black-board-settings');
@@ -120,7 +125,8 @@ export const Canvas: React.FC = () => {
     });
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
-    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'week' | 'inbox' | 'archive'>('canvas');
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
+    const [toolbarToast, setToolbarToast] = React.useState<string | null>(null);
     const [inboxResurfaceFilter, setInboxResurfaceFilter] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
@@ -368,12 +374,16 @@ export const Canvas: React.FC = () => {
         moveItemBetweenPaths(navigationPath, parentPath, item, x, y);
     };
 
-    // Move a block from current level into a sibling canvas
-    const handleMoveInto = (item: CanvasItem, targetCanvasId: string) => {
-        const targetPath = [...navigationPath, targetCanvasId];
+    // Move a block from current level into any canvas in the tree
+    const handleMoveInto = (item: CanvasItem, targetPath: string[]) => {
         const targetItems = getItemsAtPath(state.items, targetPath);
         const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
         moveItemBetweenPaths(navigationPath, targetPath, item, x, y);
+    };
+
+    const showToolbarToast = (msg: string) => {
+        setToolbarToast(msg);
+        setTimeout(() => setToolbarToast(null), 2500);
     };
 
     const fetchMetadata = async (url: string, id: string) => {
@@ -382,6 +392,18 @@ export const Canvas: React.FC = () => {
             if (response.ok) {
                 const metadata = await response.json();
                 updateItemAtPath(navigationPathRef.current, id, { metadata });
+            }
+        } catch (error) {
+            console.error('Failed to fetch metadata:', error);
+        }
+    };
+
+    const fetchMetadataForInbox = async (url: string, id: string) => {
+        try {
+            const response = await fetch(`/api/metadata?url=${encodeURIComponent(url)}`);
+            if (response.ok) {
+                const metadata = await response.json();
+                updateInboxItem(id, { metadata });
             }
         } catch (error) {
             console.error('Failed to fetch metadata:', error);
@@ -697,10 +719,12 @@ export const Canvas: React.FC = () => {
     };
 
     const handleEnterCanvas = (id: string) => {
+        setCanvasTranslate({ x: 0, y: 0 });
         setNavigationPath((prev) => [...prev, id]);
     };
 
     const navigateTo = (index: number) => {
+        setCanvasTranslate({ x: 0, y: 0 });
         setNavigationPath((prev) => prev.slice(0, index));
     };
 
@@ -714,6 +738,7 @@ export const Canvas: React.FC = () => {
                 <div
                     ref={canvasRef}
                     className="absolute inset-0 w-full h-full"
+                    style={{ transform: `translate(${canvasTranslate.x}px, ${canvasTranslate.y}px)`, transition: 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' }}
                     onDoubleClick={handleDoubleClick}
                 >
                     {currentItems.map((item) => (
@@ -727,13 +752,14 @@ export const Canvas: React.FC = () => {
                             canEject={navigationPath.length > 0}
                             onEject={() => handleEject(item)}
                             onArchive={() => handleArchive(item)}
-                            moveTargets={currentItems.filter((i) => i.type === 'canvas' && i.id !== item.id)}
-                            onMoveInto={(targetId) => handleMoveInto(item, targetId)}
+                            moveTargets={getAllSubCanvases(state.items).filter((c) => !c.path.includes(item.id))}
+                            onMoveInto={(targetPath) => handleMoveInto(item, targetPath)}
                             clockTick={clockTick}
                             onToggleTimer={handleToggleTimer}
                             onStopTimer={handleStopTimer}
                             isAlerting={alertingIds.has(item.id)}
                             isHighlighted={highlightedItemId === item.id}
+                            isBlockNavHighlighted={blockNavItemId === item.id}
                             onLogAction={handleLogAction}
                             onDeleteAction={handleDeleteAction}
                             tagMaster={tagMaster}
@@ -760,10 +786,32 @@ export const Canvas: React.FC = () => {
                                     }
                                     return null;
                                 };
+                                const findItem = (items: CanvasItem[], id: string): CanvasItem | null => {
+                                    for (const it of items) {
+                                        if (it.id === id) return it;
+                                        if (it.children?.length) {
+                                            const found = findItem(it.children, id);
+                                            if (found) return found;
+                                        }
+                                    }
+                                    return null;
+                                };
                                 const resolvedPath = findPath(state.items, blockId, []) ?? [];
                                 setNavigationPath(resolvedPath);
-                                setHighlightedItemId(blockId);
-                                setTimeout(() => setHighlightedItemId(null), 2000);
+                                setCanvasTranslate({ x: 0, y: 0 });
+                                // After navigation settles, pan to center the target item
+                                setTimeout(() => {
+                                    const target = findItem(state.items, blockId);
+                                    if (target) {
+                                        const w = target.width ?? ITEM_DEFAULTS[target.type]?.width ?? 240;
+                                        const h = target.height ?? ITEM_DEFAULTS[target.type]?.height ?? 120;
+                                        const tx = window.innerWidth / 2 - (target.x + w / 2);
+                                        const ty = window.innerHeight / 2 - (target.y + h / 2);
+                                        setCanvasTranslate({ x: tx, y: ty });
+                                    }
+                                    setBlockNavItemId(blockId);
+                                    setTimeout(() => setBlockNavItemId(null), 2500);
+                                }, 50);
                             }}
                         />
                     ))}
@@ -781,15 +829,6 @@ export const Canvas: React.FC = () => {
                 <PlanBoard
                     items={state.items}
                     recurringDays={recurringDays}
-                    onClose={() => setViewMode('canvas')}
-                    onNavigateToItem={(item, path) => {
-                        setNavigationPath(path);
-                        setViewMode('canvas');
-                    }}
-                />
-            ) : viewMode === 'week' ? (
-                <WeekBoard
-                    items={state.items}
                     onClose={() => setViewMode('canvas')}
                     onNavigateToItem={(item, path) => {
                         setNavigationPath(path);
@@ -819,11 +858,11 @@ export const Canvas: React.FC = () => {
                                     const { x, y } = findEmptyLocation(state.items, item.width ?? 240, item.height ?? 120);
                                     moveFromInboxToCanvas(item, [], x, y);
                                 }}
-                                moveTargets={rootCanvasItems}
-                                onMoveInto={(targetId) => {
-                                    const targetItems = getItemsAtPath(state.items, [targetId]);
+                                moveTargets={getAllSubCanvases(state.items)}
+                                onMoveInto={(targetPath) => {
+                                    const targetItems = getItemsAtPath(state.items, targetPath);
                                     const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
-                                    moveFromInboxToCanvas(item, [targetId], x, y);
+                                    moveFromInboxToCanvas(item, targetPath, x, y);
                                 }}
                                 clockTick={clockTick}
                                 onToggleTimer={handleToggleTimer}
@@ -868,11 +907,11 @@ export const Canvas: React.FC = () => {
                                     const { x, y } = findEmptyLocation(state.items, item.width ?? 240, item.height ?? 120);
                                     moveFromArchiveToCanvas(item, [], x, y);
                                 }}
-                                moveTargets={rootCanvasItems}
-                                onMoveInto={(targetId) => {
-                                    const targetItems = getItemsAtPath(state.items, [targetId]);
+                                moveTargets={getAllSubCanvases(state.items)}
+                                onMoveInto={(targetPath) => {
+                                    const targetItems = getItemsAtPath(state.items, targetPath);
                                     const { x, y } = findEmptyLocation(targetItems, item.width ?? 240, item.height ?? 120);
-                                    moveFromArchiveToCanvas(item, [targetId], x, y);
+                                    moveFromArchiveToCanvas(item, targetPath, x, y);
                                 }}
                                 clockTick={clockTick}
                                 onToggleTimer={handleToggleTimer}
@@ -1038,6 +1077,13 @@ export const Canvas: React.FC = () => {
                 </div>
             )}
 
+            {/* Toolbar toast */}
+            {toolbarToast && (
+                <div className="fixed bottom-32 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl glass border border-red-500/30 text-red-300 text-xs font-semibold shadow-xl z-[110] animate-in slide-in-from-bottom-4">
+                    {toolbarToast}
+                </div>
+            )}
+
             {/* Toolbar */}
             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 glass rounded-2xl shadow-2xl z-[100] animate-in slide-in-from-bottom-8">
                 {/* View Switcher */}
@@ -1078,18 +1124,6 @@ export const Canvas: React.FC = () => {
                         <ClipboardList size={20} className={viewMode === 'plan' ? 'text-violet-400' : ''} />
                         <span className="text-[9px] uppercase font-black tracking-widest">Plan</span>
                     </button>
-                    <button
-                        onClick={() => setViewMode('week')}
-                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
-                            viewMode === 'week'
-                                ? 'bg-white/10 text-white shadow-inner'
-                                : 'text-white/30 hover:text-white/60'
-                        }`}
-                        title="Switch to Week Board"
-                    >
-                        <CalendarRange size={20} className={viewMode === 'week' ? 'text-sky-400' : ''} />
-                        <span className="text-[9px] uppercase font-black tracking-widest">Week</span>
-                    </button>
                 </div>
 
                 <div className="w-[1px] h-10 bg-white/10" />
@@ -1097,8 +1131,14 @@ export const Canvas: React.FC = () => {
                 <button
 
                     onClick={() => {
-                        const { x, y } = findEmptyLocation(currentItems, 240, 120);
-                        addItem({ type: 'text', content: '', x, y });
+                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
+                        if (viewMode === 'inbox') {
+                            const { x, y } = findEmptyLocation(state.inbox ?? [], 240, 120);
+                            addToInbox({ type: 'text', content: '', x, y });
+                        } else {
+                            const { x, y } = findEmptyLocation(currentItems, 240, 120);
+                            addItem({ type: 'text', content: '', x, y });
+                        }
                     }}
                     className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
                 >
@@ -1108,7 +1148,10 @@ export const Canvas: React.FC = () => {
 
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
-                <label className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group cursor-pointer">
+                <label
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group cursor-pointer"
+                    onClick={(e) => { if (viewMode === 'archive') { e.preventDefault(); showToolbarToast("Can't add to Archives"); } }}
+                >
                     <ImageIcon size={20} className="text-white/60 group-hover:text-emerald-400 transition-colors" />
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Image</span>
                     <input
@@ -1120,16 +1163,14 @@ export const Canvas: React.FC = () => {
                             if (file) {
                                 const reader = new FileReader();
                                 reader.onload = (event) => {
-                                    const { x, y } = findEmptyLocation(currentItems, 300, 200);
-                                    addItem({
-                                        type: 'image',
-                                        content: event.target?.result as string,
-                                        x,
-                                        y,
-                                        width: 300,
-                                        height: 200,
-                                        metadata: { naturalSize: true },
-                                    });
+                                    const base64 = event.target?.result as string;
+                                    if (viewMode === 'inbox') {
+                                        const { x, y } = findEmptyLocation(state.inbox ?? [], 300, 200);
+                                        addToInbox({ type: 'image', content: base64, x, y, width: 300, height: 200, metadata: { naturalSize: true } });
+                                    } else {
+                                        const { x, y } = findEmptyLocation(currentItems, 300, 200);
+                                        addItem({ type: 'image', content: base64, x, y, width: 300, height: 200, metadata: { naturalSize: true } });
+                                    }
                                     trackImageAdded();
                                 };
                                 reader.readAsDataURL(file);
@@ -1142,19 +1183,19 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={async () => {
+                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
                         const url = prompt('Enter a URL');
                         if (url) {
                             const trimmedUrl = url.trim();
-                            const { x, y } = findEmptyLocation(currentItems, 300, 280);
-                            const id = await addItem({
-                                type: 'link',
-                                content: trimmedUrl,
-                                x,
-                                y,
-                                width: 300,
-                                height: 280,
-                            });
-                            await fetchMetadata(trimmedUrl, id);
+                            if (viewMode === 'inbox') {
+                                const { x, y } = findEmptyLocation(state.inbox ?? [], 300, 280);
+                                const id = await addToInbox({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
+                                await fetchMetadataForInbox(trimmedUrl, id);
+                            } else {
+                                const { x, y } = findEmptyLocation(currentItems, 300, 280);
+                                const id = await addItem({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
+                                await fetchMetadata(trimmedUrl, id);
+                            }
                         }
                     }}
                     className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
@@ -1167,6 +1208,8 @@ export const Canvas: React.FC = () => {
 
                 <button
                     onClick={() => {
+                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
+                        if (viewMode === 'inbox') { showToolbarToast("Can't add Canvas to Inbox"); return; }
                         const { x, y } = findEmptyLocation(currentItems, 320, 240);
                         addItem({
                             type: 'canvas',
@@ -1625,6 +1668,19 @@ export const Canvas: React.FC = () => {
                             </div>
 
                             <div className="h-px bg-white/10 my-2" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Content</p>
+                            <button
+                                onClick={() => { setShowTagMaster(true); setShowSettings(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+                            >
+                                <Tag size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Tags</div>
+                                    <div className="text-[10px] text-white/30">Edit or delete tags across all items</div>
+                                </div>
+                            </button>
+
+                            <div className="h-px bg-white/10 my-2" />
                             <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Financials</p>
                             <button
                                 onClick={() => { setShowWalletMaster(true); setShowSettings(false); }}
@@ -1711,6 +1767,87 @@ export const Canvas: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Tag Master Modal */}
+            {showTagMaster && (() => {
+                // Compute tag usage counts from all items (deep)
+                const tagCounts: Record<string, number> = {};
+                tagMaster.forEach(t => { tagCounts[t] = 0; });
+                const countTags = (items: CanvasItem[]) => {
+                    items.forEach(item => {
+                        (item.tags ?? []).forEach(t => { tagCounts[t] = (tagCounts[t] ?? 0) + 1; });
+                        if (item.children?.length) countTags(item.children);
+                    });
+                };
+                countTags(state.items);
+
+                const renameTagEverywhere = (oldTag: string, newTag: string) => {
+                    const newName = newTag.trim();
+                    if (!newName || newName === oldTag) return;
+                    renameTagGlobally(oldTag, newName);
+                    setTagMaster(prev => prev.map(t => t === oldTag ? newName : t));
+                    setEditingTagNames(prev => { const n = { ...prev }; delete n[oldTag]; return n; });
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[300] flex items-center justify-center" onClick={() => setShowTagMaster(false)}>
+                        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                        <div
+                            className="relative w-[440px] max-h-[80vh] flex flex-col rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                            style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)' }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                                <div className="flex items-center gap-2">
+                                    <Tag size={16} className="text-sky-400" />
+                                    <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">Tags</h2>
+                                    <span className="text-[11px] text-white/30 font-mono">{tagMaster.length}</span>
+                                </div>
+                                <button onClick={() => setShowTagMaster(false)} className="w-6 h-6 flex items-center justify-center rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors text-lg leading-none">×</button>
+                            </div>
+
+                            {/* List */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-3 flex flex-col gap-1">
+                                {tagMaster.length === 0 && (
+                                    <p className="text-center text-white/20 text-sm py-8">No tags yet</p>
+                                )}
+                                {tagMaster.map((tag) => {
+                                    const count = tagCounts[tag] ?? 0;
+                                    const editVal = editingTagNames[tag] ?? tag;
+                                    return (
+                                        <div key={tag} className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/5 group transition-colors">
+                                            <input
+                                                type="text"
+                                                value={editVal}
+                                                onChange={e => setEditingTagNames(prev => ({ ...prev, [tag]: e.target.value }))}
+                                                onBlur={() => renameTagEverywhere(tag, editVal)}
+                                                onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                                                className="flex-1 bg-transparent text-sm font-semibold text-white/80 focus:outline-none focus:text-white min-w-0"
+                                            />
+                                            <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full shrink-0 ${count > 0 ? 'bg-sky-500/15 text-sky-400' : 'bg-white/5 text-white/20'}`}>
+                                                {count}
+                                            </span>
+                                            <button
+                                                onClick={() => {
+                                                    if (count > 0) return;
+                                                    setTagMaster(prev => prev.filter(t => t !== tag));
+                                                    setEditingTagNames(prev => { const n = { ...prev }; delete n[tag]; return n; });
+                                                }}
+                                                disabled={count > 0}
+                                                className={`p-1 rounded-lg transition-all ${count > 0 ? 'opacity-0 cursor-default' : 'opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-white/30 hover:text-red-400'}`}
+                                                title={count > 0 ? 'Tag is in use' : 'Delete tag'}
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {showSitemap && (
                 <CanvasSitemapPanel

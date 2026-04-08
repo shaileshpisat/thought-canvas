@@ -9,6 +9,71 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.0.12
+
+### Tweaks
+- "Move into canvas" tree picker now shows connecting elbow lines between parent and child canvases for easier readability.
+
+---
+
+## v2.0.11
+
+### Improvements
+- "Move into canvas" picker now shows all canvases across the entire tree — with a search box and depth-indented parent breadcrumbs — instead of only sibling canvases at the current level.
+
+---
+
+## v2.0.10
+
+### Bug Fixes
+- `[[block]]` links now correctly intercept clicks — `onPointerDown` stops Framer Motion's drag tracking so the link navigates instead of being swallowed.
+
+---
+
+## v2.0.9
+
+### Bug Fixes
+- Tag suggestions dropdown no longer appears behind the timer badge when adding a tag to a block.
+
+---
+
+## v2.0.8
+
+### Improvements
+- `[[block]]` links now pan the canvas to center the linked item and illuminate it with a violet glow on click.
+
+---
+
+## v2.0.7
+
+### New Features
+- Settings → Tags master list: view all tags with item usage counts, rename a tag across all items, and delete unused tags (count = 0).
+
+---
+
+## v2.0.6
+
+### Tweaks
+- Removed the duplicate "Week" toolbar button (Week Board). Items with "Show on Week Board" enabled now appear as priority-colored cards in the main Week (calendar) view instead.
+
+---
+
+## v2.0.5
+
+### Fixes
+- In Inbox view, toolbar Text/Image/Link buttons now add items to Inbox instead of the root canvas.
+- In Archive view, toolbar add buttons (Text, Image, Link, Canvas) now show a "Can't add to Archives" toast instead of silently adding to root canvas.
+- Canvas sub-canvas button is blocked in Inbox view with a clear message.
+
+---
+
+## v2.0.4
+
+### Tweaks
+- Manual Logs section on canvas items now defaults to collapsed instead of expanded.
+
+---
+
 ## v2.0.3
 
 ### Enhancements
