@@ -823,6 +823,10 @@ export const Canvas: React.FC = () => {
                     onNavigateToItem={(item, path) => {
                         setNavigationPath(path);
                         setViewMode('canvas');
+                        setTimeout(() => {
+                            setHighlightedItemId(item.id);
+                            setTimeout(() => setHighlightedItemId(null), 2000);
+                        }, 50);
                     }}
                 />
             ) : viewMode === 'plan' ? (
@@ -833,6 +837,10 @@ export const Canvas: React.FC = () => {
                     onNavigateToItem={(item, path) => {
                         setNavigationPath(path);
                         setViewMode('canvas');
+                        setTimeout(() => {
+                            setHighlightedItemId(item.id);
+                            setTimeout(() => setHighlightedItemId(null), 2000);
+                        }, 50);
                     }}
                 />
             ) : viewMode === 'inbox' ? (

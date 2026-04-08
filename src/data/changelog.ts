@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.15',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          'Navigating to a block from Plan Board or Calendar Board now illuminates it with a pulsing highlight.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.0.14',
     sections: [
       {

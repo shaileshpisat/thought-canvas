@@ -9,6 +9,14 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.0.15
+
+### Improvements
+
+- Navigating to a block from Plan Board or Calendar Board now illuminates it with a pulsing highlight.
+
+---
+
 ## v2.0.14
 
 ### Improvements
