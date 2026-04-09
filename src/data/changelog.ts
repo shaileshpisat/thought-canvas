@@ -6,6 +6,39 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.0.18',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          'Increased toolbar, menubar, and badge opacity for better visibility on all background types.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.17',
+    sections: [
+      {
+        heading: 'Improvements',
+        changes: [
+          'Canvas-level timer chip (top-right) now stays visible when paused (amber dot, play button to resume), and disappears only when stopped.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.0.16',
+    sections: [
+      {
+        heading: 'Fixes',
+        changes: [
+          'Canvas-level running timer (top-right) now resets to zero each time the timer is started or resumed, instead of showing cumulative daily time.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.0.15',
     sections: [
       {

@@ -4,6 +4,7 @@ export type Priority = 'very-high' | 'high' | 'medium' | 'low' | 'very-low';
 
 export interface CanvasTimer {
   isRunning: boolean;
+  isPaused?: boolean;  // true when paused (chip stays visible); false/absent when stopped
   startTime: number;   // Date.now() when last started
   totalElapsed: number; // seconds accumulated across all sessions
   sessions?: { start: number; end?: number }[];

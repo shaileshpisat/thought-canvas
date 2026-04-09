@@ -9,6 +9,30 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.0.18
+
+### Improvements
+
+- Increased toolbar, menubar, and badge opacity for better visibility on all background types.
+
+---
+
+## v2.0.17
+
+### Improvements
+
+- Canvas-level timer chip (top-right) now stays visible when paused (amber dot, play button to resume), and disappears only when stopped.
+
+---
+
+## v2.0.16
+
+### Fixes
+
+- Canvas-level running timer (top-right) now resets to zero each time the timer is started or resumed, instead of showing cumulative daily time.
+
+---
+
 ## v2.0.15
 
 ### Improvements

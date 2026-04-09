@@ -558,13 +558,14 @@ export const Canvas: React.FC = () => {
                 s.end === undefined ? { ...s, end: now } : s
             );
             updateItemAtPath(path, id, {
-                timer: { ...item.timer, isRunning: false, totalElapsed: elapsed, sessions },
+                timer: { ...item.timer, isRunning: false, isPaused: true, totalElapsed: elapsed, sessions },
             }, { historyActionLabel: 'Paused timer' });
         } else {
             updateItemAtPath(path, id, {
                 timer: {
                     ...item.timer,
                     isRunning: true,
+                    isPaused: false,
                     startTime: now,
                     sessions: [...(item.timer.sessions ?? []), { start: now }],
                 },
@@ -589,7 +590,7 @@ export const Canvas: React.FC = () => {
             ? (timer.sessions ?? []).map((s) => (s.end === undefined ? { ...s, end: now } : s))
             : (timer.sessions ?? []);
         updateItemAtPath(path, id, {
-            timer: { ...timer, isRunning: false, totalElapsed: elapsed, sessions },
+            timer: { ...timer, isRunning: false, isPaused: false, totalElapsed: elapsed, sessions },
         }, { historyActionLabel: 'Stopped timer' });
     };
 
@@ -964,38 +965,46 @@ export const Canvas: React.FC = () => {
                 />
             )}
 
-            {/* Running Timers Capsule — top-right */}
+            {/* Running/Paused Timers Capsule — top-right */}
             {viewMode === 'canvas' && (() => {
-                const running = flattenItems(state.items).filter((i) => i.timer?.isRunning);
-                if (running.length === 0) return null;
+                const active = flattenItems(state.items).filter((i) => i.timer?.isRunning || i.timer?.isPaused);
+                if (active.length === 0) return null;
+                const runningCount = active.filter((i) => i.timer?.isRunning).length;
                 return (
                     <div className="fixed top-5 right-6 z-[100] flex items-center gap-2 animate-in slide-in-from-top-4">
                         <div className="flex items-center gap-1.5 px-2 py-1 glass rounded-xl">
                             <Timer size={11} className="text-emerald-400/70 shrink-0" />
                             <span className="text-[10px] font-bold uppercase tracking-wider text-white/30">
-                                {running.length} running
+                                {runningCount > 0 ? `${runningCount} running` : 'paused'}
                             </span>
                         </div>
-                        {running.map((item) => {
+                        {active.map((item) => {
+                            const isRunning = item.timer!.isRunning;
                             const label = item.content.replace(/\s*#\S+/g, '').trim().split('\n')[0].slice(0, 28) || 'Untitled';
-                            const elapsed = formatTodayElapsed(item.timer!);
+                            const sessionSecs = isRunning
+                                ? Math.floor((Date.now() - item.timer!.startTime) / 1000)
+                                : Math.floor(item.timer!.totalElapsed % 86400); // show total elapsed when paused
+                            const elapsed = `${String(Math.floor(sessionSecs / 3600)).padStart(2, '0')}:${String(Math.floor((sessionSecs % 3600) / 60)).padStart(2, '0')}:${String(sessionSecs % 60).padStart(2, '0')}`;
 
                             return (
                                 <div
                                     key={item.id}
                                     className="group/rc flex items-center gap-2 px-3 py-1.5 glass rounded-xl shadow-lg animate-in fade-in"
                                 >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
                                     <span className="text-xs text-white/70 font-medium truncate max-w-[140px]">{label}</span>
-                                    <span className="font-mono text-[11px] font-bold tabular-nums text-emerald-400">{elapsed}</span>
+                                    <span className={`font-mono text-[11px] font-bold tabular-nums ${isRunning ? 'text-emerald-400' : 'text-amber-400'}`}>{elapsed}</span>
                                     {/* Controls on hover */}
                                     <div className="flex items-center gap-0.5 w-0 overflow-hidden group-hover/rc:w-auto transition-all duration-150">
                                         <button
                                             onClick={() => handleToggleTimer(item.id)}
                                             className="p-1 rounded hover:bg-white/10 transition-colors"
-                                            title="Pause"
+                                            title={isRunning ? 'Pause' : 'Resume'}
                                         >
-                                            <Pause size={10} className="text-emerald-400" />
+                                            {isRunning
+                                                ? <Pause size={10} className="text-emerald-400" />
+                                                : <Play size={10} className="text-amber-400" />
+                                            }
                                         </button>
                                         <button
                                             onClick={() => handleStopTimer(item.id)}
