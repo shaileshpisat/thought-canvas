@@ -33,10 +33,12 @@ import {
     IndianRupee,
     Trash2,
     Tag,
+    BarChart3,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
 import { SearchPanel } from './SearchPanel';
+import { StatsBoard } from './StatsBoard';
 import { DateFilterPanel } from './DateFilterPanel';
 import { CalendarBoard } from './CalendarBoard';
 import { PlanBoard } from './PlanBoard';
@@ -109,6 +111,7 @@ export const Canvas: React.FC = () => {
     const [showSitemap, setShowSitemap] = React.useState(false);
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
+    const [showStatsBoard, setShowStatsBoard] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showWalletMaster, setShowWalletMaster] = React.useState(false);
     const [showTagMaster, setShowTagMaster] = React.useState(false);
@@ -1376,6 +1379,17 @@ export const Canvas: React.FC = () => {
 
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
+                <button
+                    onClick={() => setShowStatsBoard(true)}
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                    title="Stats Board"
+                >
+                    <BarChart3 size={20} className="text-white/60 group-hover:text-violet-400 transition-colors" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Stats</span>
+                </button>
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
                 <div className="relative group/datebtn">
                     <button
                         onClick={() => setShowDateCalendar((v) => !v)}
@@ -1886,6 +1900,20 @@ export const Canvas: React.FC = () => {
                         }
                     }}
                     onClose={() => setShowSearch(false)}
+                />
+            )}
+
+            {showStatsBoard && (
+                <StatsBoard
+                    allItems={state.items}
+                    onNavigate={(path, itemId) => {
+                        setNavigationPath(path);
+                        if (itemId) {
+                            setHighlightedItemId(itemId);
+                            setTimeout(() => setHighlightedItemId(null), 2000);
+                        }
+                    }}
+                    onClose={() => setShowStatsBoard(false)}
                 />
             )}
 

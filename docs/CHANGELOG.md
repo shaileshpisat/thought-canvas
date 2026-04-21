@@ -9,6 +9,33 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.2.1
+
+### Improvements
+
+- Stats Board panel is now larger (wider and taller) for more comfortable browsing.
+- **Recurring Today**, **Pinned Canvases**, and **Pinned Notes** render as horizontally-scrolling cards instead of vertical lists.
+- Markdown syntax is stripped from note snippets in the Stats Board so previews read as plain text.
+
+---
+
+## v2.2.0
+
+### Features
+
+- **Pinning** — any block (canvas, text, image, link) can now be pinned. Toggle via the new pin icon in the hover toolbar, or click the amber pin badge on the top-left of the card to unpin. Pinned state persists with the item.
+- **Stats Board** — new **Pinned Canvases** and **Pinned Notes** sections list all currently pinned items of those types, each clickable to jump to its location.
+
+---
+
+## v2.1.0
+
+### Features
+
+- New **Stats Board** panel — open from the toolbar (chart icon). Shows totals for Canvases, Text, Image, and Link blocks, a tag cloud sized by usage, blocks dated today, and recurring blocks whose rule falls on today. Each listed block is clickable to jump straight to its location on the canvas.
+
+---
+
 ## v2.0.18
 
 ### Improvements

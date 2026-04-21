@@ -69,6 +69,7 @@ export interface CanvasItem {
   recurring?: RecurringRule;
   showOnPlanBoard?: boolean;
   showOnWeekBoard?: boolean;
+  pinned?: boolean;
   priority?: Priority;
   tags?: string[];
   timer?: CanvasTimer;

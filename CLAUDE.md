@@ -77,4 +77,4 @@ Version bump rules:
 - **MINOR** (x.**Y**.0) — new features or significant UI/UX changes
 - **MAJOR** (**X**.0.0) — breaking changes, complete redesigns, or data migrations
 
-Current version: **1.7.6**
+Current version: **2.2.1**

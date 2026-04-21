@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive, IndianRupee } from 'lucide-react';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive, IndianRupee, Pin } from 'lucide-react';
 import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry, FinancialEntry, FinancialType } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1354,6 +1354,16 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
                         <div className="w-[1px] h-4 bg-white/10" />
 
+                        {!readOnly && (
+                            <button
+                                onClick={() => onUpdate(item.id, { pinned: !item.pinned })}
+                                className={`p-1.5 transition-colors ${item.pinned ? 'text-amber-300 hover:text-amber-200' : 'text-white/40 hover:text-amber-400'}`}
+                                title={item.pinned ? 'Unpin' : 'Pin'}
+                            >
+                                <Pin size={16} className={item.pinned ? 'fill-current' : ''} style={item.pinned ? undefined : { transform: 'rotate(45deg)' }} />
+                            </button>
+                        )}
+
                         {onArchive && !readOnly && (
                             <button
                                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); onArchive(); }}
@@ -1373,6 +1383,21 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         </button>
                         )}
                     </div>
+                )}
+
+                {/* Pin indicator — top left, always visible when pinned */}
+                {item.pinned && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (readOnly) return;
+                            onUpdate(item.id, { pinned: false });
+                        }}
+                        className="absolute -top-2.5 -left-2 z-30 w-6 h-6 rounded-full flex items-center justify-center bg-amber-500/25 text-amber-300 ring-1 ring-amber-400/50 shadow-[0_0_10px_rgba(245,158,11,0.35)] hover:bg-amber-500/40 hover:text-amber-200 transition-colors"
+                        title={readOnly ? 'Pinned' : 'Pinned — click to unpin'}
+                    >
+                        <Pin size={12} className="fill-current" />
+                    </button>
                 )}
 
                 {/* Date overlay badge — top right of block */}
