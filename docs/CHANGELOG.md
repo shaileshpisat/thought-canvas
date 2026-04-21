@@ -9,6 +9,22 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.5.0
+
+### UI
+
+- **Consolidated Add menu in toolbar** — the Text, Image, and Link buttons in the bottom toolbar are now grouped behind a single **Add** button. Clicking it opens a compact popover with the three options (Text, Image, Link), reducing toolbar clutter while keeping all creation flows one click away. Behavior is unchanged: Text creates an empty text card, Image opens the file picker, and Link prompts for a URL and fetches OG metadata.
+
+---
+
+## v2.4.0
+
+### Features
+
+- **Search in Canvas Map** — a new search box at the top of the Canvas Map filters the tree as you type. Matches against canvas names (case-insensitive), keeps ancestors visible so you can see context, auto-expands matching branches, and highlights the matched substring. Press Escape or click the × to clear. The Root Board row is hidden while searching since it has no name to match.
+
+---
+
 ## v2.3.0
 
 ### Features

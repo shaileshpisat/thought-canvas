@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, ChevronRight, ChevronDown, FolderOpen, Folder, Home, LayoutList, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { X, ChevronRight, ChevronDown, FolderOpen, Folder, Home, LayoutList, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 import { CanvasItem, FinancialEntry } from '@/types/canvas';
 
 // ── Stat helpers ────────────────────────────────────────────────────────────
@@ -68,6 +68,39 @@ function fmtRupee(amount: number): string | null {
     return `${amount < 0 ? '−' : '+'}₹${formatted}`;
 }
 
+// ── Search helpers ──────────────────────────────────────────────────────────
+
+/** Case-insensitive match against a canvas name (falls back to "Untitled Canvas"). */
+function nameMatches(item: CanvasItem, query: string): boolean {
+    if (!query) return true;
+    const name = (item.content || 'Untitled Canvas').toLowerCase();
+    return name.includes(query.toLowerCase());
+}
+
+/** True if this canvas or any descendant canvas matches the query. */
+function subtreeMatches(item: CanvasItem, query: string): boolean {
+    if (!query) return true;
+    if (nameMatches(item, query)) return true;
+    for (const child of item.children ?? []) {
+        if (child.type === 'canvas' && subtreeMatches(child, query)) return true;
+    }
+    return false;
+}
+
+/** Render a canvas name with matched substring highlighted. */
+const HighlightedName: React.FC<{ text: string; query: string }> = ({ text, query }) => {
+    if (!query) return <>{text}</>;
+    const i = text.toLowerCase().indexOf(query.toLowerCase());
+    if (i < 0) return <>{text}</>;
+    return (
+        <>
+            {text.slice(0, i)}
+            <span className="bg-amber-400/30 text-amber-200 rounded px-0.5">{text.slice(i, i + query.length)}</span>
+            {text.slice(i + query.length)}
+        </>
+    );
+};
+
 // ── Stat pill ────────────────────────────────────────────────────────────────
 
 const Pill: React.FC<{ label: string; color: string }> = ({ label, color }) => (
@@ -85,6 +118,7 @@ interface TreeNodeProps {
     depth: number;
     showDetails: boolean;
     reorderMode: boolean;
+    query: string;
     siblingIndex: number;
     siblingCount: number;
     onNavigate: (path: string[]) => void;
@@ -93,15 +127,20 @@ interface TreeNodeProps {
 
 const TreeNode: React.FC<TreeNodeProps> = ({
     item, path, currentPath, depth, showDetails,
-    reorderMode, siblingIndex, siblingCount,
+    reorderMode, query, siblingIndex, siblingCount,
     onNavigate, onReorder,
 }) => {
-    const subCanvases = (item.children ?? []).filter((c) => c.type === 'canvas');
+    const allSubCanvases = (item.children ?? []).filter((c) => c.type === 'canvas');
+    const subCanvases = query
+        ? allSubCanvases.filter((c) => subtreeMatches(c, query))
+        : allSubCanvases;
 
     const isActive = path.length === currentPath.length && path.every((id, i) => currentPath[i] === id);
     const isAncestor = !isActive && path.every((id, i) => currentPath[i] === id);
 
-    const [open, setOpen] = useState(isActive || isAncestor || subCanvases.length > 0);
+    const [open, setOpen] = useState(isActive || isAncestor || allSubCanvases.length > 0);
+    // Force-open while searching so matching descendants are visible
+    const effectiveOpen = query ? subCanvases.length > 0 : open;
     const hasChildren = subCanvases.length > 0;
 
     const parentPath = path.slice(0, -1);
@@ -141,19 +180,23 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 <div className="flex items-center gap-1.5">
                     {hasChildren ? (
                         <button
-                            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-                            className="p-0.5 rounded hover:bg-white/10 shrink-0 text-white/40 hover:text-white/70 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); if (!query) setOpen((v) => !v); }}
+                            disabled={!!query}
+                            className="p-0.5 rounded hover:bg-white/10 shrink-0 text-white/40 hover:text-white/70 transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+                            title={query ? 'Expanded for search' : undefined}
                         >
-                            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            {effectiveOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                         </button>
                     ) : (
                         <span className="w-[20px] shrink-0" />
                     )}
-                    {open && hasChildren
+                    {effectiveOpen && hasChildren
                         ? <FolderOpen size={14} className="shrink-0 text-purple-400/80" />
                         : <Folder size={14} className={`shrink-0 ${isActive ? 'text-purple-400' : 'text-white/30 group-hover:text-purple-400/60'}`} />
                     }
-                    <span className="text-xs font-medium flex-1">{item.content || 'Untitled Canvas'}</span>
+                    <span className="text-xs font-medium flex-1">
+                        <HighlightedName text={item.content || 'Untitled Canvas'} query={query} />
+                    </span>
                     {reorderMode && (
                         <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                             <input
@@ -218,23 +261,27 @@ const TreeNode: React.FC<TreeNodeProps> = ({
                 )}
             </div>
 
-            {open && hasChildren && (
+            {effectiveOpen && hasChildren && (
                 <div>
-                    {subCanvases.map((child, idx) => (
-                        <TreeNode
-                            key={child.id}
-                            item={child}
-                            path={[...path, child.id]}
-                            currentPath={currentPath}
-                            depth={depth + 1}
-                            showDetails={showDetails}
-                            reorderMode={reorderMode}
-                            siblingIndex={idx}
-                            siblingCount={subCanvases.length}
-                            onNavigate={onNavigate}
-                            onReorder={onReorder}
-                        />
-                    ))}
+                    {subCanvases.map((child) => {
+                        const origIdx = allSubCanvases.findIndex((c) => c.id === child.id);
+                        return (
+                            <TreeNode
+                                key={child.id}
+                                item={child}
+                                path={[...path, child.id]}
+                                currentPath={currentPath}
+                                depth={depth + 1}
+                                showDetails={showDetails}
+                                reorderMode={reorderMode}
+                                query={query}
+                                siblingIndex={origIdx}
+                                siblingCount={allSubCanvases.length}
+                                onNavigate={onNavigate}
+                                onReorder={onReorder}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -261,6 +308,13 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
     const rootCanvases = items.filter((i) => i.type === 'canvas');
     const [showDetails, setShowDetails] = useState(false);
     const [reorderMode, setReorderMode] = useState(false);
+    const [query, setQuery] = useState('');
+    const trimmedQuery = query.trim();
+
+    const filteredRoots = useMemo(
+        () => (trimmedQuery ? rootCanvases.filter((c) => subtreeMatches(c, trimmedQuery)) : rootCanvases),
+        [rootCanvases, trimmedQuery]
+    );
 
     const handleNavigate = (path: string[]) => {
         if (reorderMode) return; // clicks in reorder mode shouldn't navigate
@@ -317,10 +371,35 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
                     </div>
                 </div>
 
+                {/* Search */}
+                <div className="px-3 py-2 border-b border-white/10 shrink-0">
+                    <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
+                            placeholder="Search canvases..."
+                            autoFocus
+                            className="w-full pl-7 pr-7 py-1.5 text-xs text-white/80 placeholder-white/30 bg-white/5 border border-white/10 rounded-lg focus:outline-none focus:border-purple-400/60 focus:bg-white/10 transition-colors"
+                        />
+                        {query && (
+                            <button
+                                onClick={() => setQuery('')}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors"
+                                title="Clear search"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 {/* Tree */}
                 <div className="overflow-y-auto flex-1 py-2 px-1">
-                    {/* Root board row */}
-                    <div
+                    {/* Root board row (hidden while searching — it has no name to match) */}
+                    {!trimmedQuery && <div
                         className={`flex flex-col py-1 px-3 rounded-lg cursor-pointer transition-colors mb-1 ${
                             currentPath.length === 0
                                 ? 'bg-sky-500/20 text-sky-300'
@@ -358,26 +437,32 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
                                 </div>
                             );
                         })()}
-                    </div>
+                    </div>}
 
                     {rootCanvases.length === 0 ? (
                         <p className="text-xs text-white/30 text-center py-6">No sub-canvases yet</p>
+                    ) : filteredRoots.length === 0 ? (
+                        <p className="text-xs text-white/30 text-center py-6">No matches for &ldquo;{trimmedQuery}&rdquo;</p>
                     ) : (
-                        rootCanvases.map((canvas, idx) => (
-                            <TreeNode
-                                key={canvas.id}
-                                item={canvas}
-                                path={[canvas.id]}
-                                currentPath={currentPath}
-                                depth={0}
-                                showDetails={showDetails}
-                                reorderMode={reorderMode}
-                                siblingIndex={idx}
-                                siblingCount={rootCanvases.length}
-                                onNavigate={handleNavigate}
-                                onReorder={onReorder}
-                            />
-                        ))
+                        filteredRoots.map((canvas) => {
+                            const origIdx = rootCanvases.findIndex((c) => c.id === canvas.id);
+                            return (
+                                <TreeNode
+                                    key={canvas.id}
+                                    item={canvas}
+                                    path={[canvas.id]}
+                                    currentPath={currentPath}
+                                    depth={0}
+                                    showDetails={showDetails}
+                                    reorderMode={reorderMode}
+                                    query={trimmedQuery}
+                                    siblingIndex={origIdx}
+                                    siblingCount={rootCanvases.length}
+                                    onNavigate={handleNavigate}
+                                    onReorder={onReorder}
+                                />
+                            );
+                        })
                     )}
                 </div>
             </div>

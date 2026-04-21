@@ -6,6 +6,28 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.5.0',
+    sections: [
+      {
+        heading: 'UI',
+        changes: [
+          'Consolidated Add menu in toolbar — the Text, Image, and Link buttons are now grouped behind a single Add button. Clicking it opens a compact popover with the three options, reducing toolbar clutter while keeping all creation flows one click away.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.4.0',
+    sections: [
+      {
+        heading: 'Features',
+        changes: [
+          'Search in Canvas Map — a new search box at the top of the Canvas Map filters the tree as you type. Matches canvas names (case-insensitive), keeps ancestors visible, auto-expands matching branches, and highlights the matched substring. Press Escape or click the × to clear.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.3.0',
     sections: [
       {

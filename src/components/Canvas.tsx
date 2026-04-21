@@ -131,6 +131,8 @@ export const Canvas: React.FC = () => {
     const [showChangelog, setShowChangelog] = React.useState(false);
     const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
     const [toolbarToast, setToolbarToast] = React.useState<string | null>(null);
+    const [showAddMenu, setShowAddMenu] = React.useState(false);
+    const addImageInputRef = React.useRef<HTMLInputElement>(null);
     const [inboxResurfaceFilter, setInboxResurfaceFilter] = React.useState(false);
     const [dateFilterDate, setDateFilterDate] = React.useState<string | null>(null);
 
@@ -1149,33 +1151,21 @@ export const Canvas: React.FC = () => {
 
                 <div className="w-[1px] h-10 bg-white/10" />
 
-                <button
+                {/* Add menu (Text / Image / Link / Canvas) */}
+                <div className="relative">
+                    <button
+                        onClick={() => {
+                            if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
+                            setShowAddMenu((v) => !v);
+                        }}
+                        className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${showAddMenu ? 'bg-white/5' : ''}`}
+                    >
+                        <Plus size={20} className={`transition-colors ${showAddMenu ? 'text-sky-400' : 'text-white/60 group-hover:text-sky-400'}`} />
+                        <span className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${showAddMenu ? 'text-sky-400' : 'text-white/30 group-hover:text-white/60'}`}>Add</span>
+                    </button>
 
-                    onClick={() => {
-                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
-                        if (viewMode === 'inbox') {
-                            const { x, y } = findEmptyLocation(state.inbox ?? [], 240, 120);
-                            addToInbox({ type: 'text', content: '', x, y });
-                        } else {
-                            const { x, y } = findEmptyLocation(currentItems, 240, 120);
-                            addItem({ type: 'text', content: '', x, y });
-                        }
-                    }}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                >
-                    <Type size={20} className="text-white/60 group-hover:text-sky-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Text</span>
-                </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
-
-                <label
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group cursor-pointer"
-                    onClick={(e) => { if (viewMode === 'archive') { e.preventDefault(); showToolbarToast("Can't add to Archives"); } }}
-                >
-                    <ImageIcon size={20} className="text-white/60 group-hover:text-emerald-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Image</span>
                     <input
+                        ref={addImageInputRef}
                         type="file"
                         accept="image/*"
                         className="hidden"
@@ -1196,68 +1186,94 @@ export const Canvas: React.FC = () => {
                                 };
                                 reader.readAsDataURL(file);
                             }
+                            e.target.value = '';
                         }}
                     />
-                </label>
 
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
-
-                <button
-                    onClick={async () => {
-                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
-                        const url = prompt('Enter a URL');
-                        if (url) {
-                            const trimmedUrl = url.trim();
-                            if (viewMode === 'inbox') {
-                                const { x, y } = findEmptyLocation(state.inbox ?? [], 300, 280);
-                                const id = await addToInbox({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
-                                await fetchMetadataForInbox(trimmedUrl, id);
-                            } else {
-                                const { x, y } = findEmptyLocation(currentItems, 300, 280);
-                                const id = await addItem({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
-                                await fetchMetadata(trimmedUrl, id);
-                            }
-                        }
-                    }}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                >
-                    <LinkIcon size={20} className="text-white/60 group-hover:text-amber-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Link</span>
-                </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
-
-                <button
-                    onClick={() => {
-                        if (viewMode === 'archive') { showToolbarToast("Can't add to Archives"); return; }
-                        if (viewMode === 'inbox') { showToolbarToast("Can't add Canvas to Inbox"); return; }
-                        const { x, y } = findEmptyLocation(currentItems, 320, 240);
-                        addItem({
-                            type: 'canvas',
-                            content: 'New Canvas',
-                            x,
-                            y,
-                            width: 320,
-                            height: 240,
-                            children: [],
-                        });
-                    }}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                >
-                    <Layers size={20} className="text-white/60 group-hover:text-purple-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Canvas</span>
-                </button>
-
-                <button
-                    onClick={() => setShowSitemap((v) => !v)}
-                    className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${showSitemap ? 'bg-purple-500/15' : ''}`}
-                    title="Canvas Map (tree view)"
-                >
-                    <Network size={20} className={`transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/60 group-hover:text-purple-400'}`} />
-                    <span className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/30 group-hover:text-white/60'}`}>Tree</span>
-                </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+                    {showAddMenu && (
+                        <>
+                            <div className="fixed inset-0 z-[-1]" onClick={() => setShowAddMenu(false)} />
+                            <div
+                                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-44 rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150"
+                                style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+                            >
+                                <div className="px-4 py-3 border-b border-white/5">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Add Item</p>
+                                </div>
+                                <div className="p-1.5 flex flex-col gap-0.5">
+                                    <button
+                                        onClick={() => {
+                                            if (viewMode === 'inbox') {
+                                                const { x, y } = findEmptyLocation(state.inbox ?? [], 240, 120);
+                                                addToInbox({ type: 'text', content: '', x, y });
+                                            } else {
+                                                const { x, y } = findEmptyLocation(currentItems, 240, 120);
+                                                addItem({ type: 'text', content: '', x, y });
+                                            }
+                                            setShowAddMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <Type size={16} className="text-white/40 group-hover:text-sky-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Text</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            addImageInputRef.current?.click();
+                                            setShowAddMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <ImageIcon size={16} className="text-white/40 group-hover:text-emerald-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Image</span>
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            setShowAddMenu(false);
+                                            const url = prompt('Enter a URL');
+                                            if (url) {
+                                                const trimmedUrl = url.trim();
+                                                if (viewMode === 'inbox') {
+                                                    const { x, y } = findEmptyLocation(state.inbox ?? [], 300, 280);
+                                                    const id = await addToInbox({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
+                                                    await fetchMetadataForInbox(trimmedUrl, id);
+                                                } else {
+                                                    const { x, y } = findEmptyLocation(currentItems, 300, 280);
+                                                    const id = await addItem({ type: 'link', content: trimmedUrl, x, y, width: 300, height: 280 });
+                                                    await fetchMetadata(trimmedUrl, id);
+                                                }
+                                            }
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <LinkIcon size={16} className="text-white/40 group-hover:text-amber-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Link</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (viewMode === 'inbox') { showToolbarToast("Can't add Canvas to Inbox"); setShowAddMenu(false); return; }
+                                            const { x, y } = findEmptyLocation(currentItems, 320, 240);
+                                            addItem({
+                                                type: 'canvas',
+                                                content: 'New Canvas',
+                                                x,
+                                                y,
+                                                width: 320,
+                                                height: 240,
+                                                children: [],
+                                            });
+                                            setShowAddMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <Layers size={16} className="text-white/40 group-hover:text-purple-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Canvas</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
 
                 <button
                     onClick={() => {
@@ -1285,32 +1301,27 @@ export const Canvas: React.FC = () => {
                 </button>
 
                 {preOrganizeSnapshot && (
-                    <>
-                        <div className="w-[1px] h-10 bg-white/10 mx-1" />
-                        <button
-                            onClick={() => {
-                                const updatesMap: Record<string, Partial<CanvasItem>> = {};
-                                preOrganizeSnapshot.forEach(({ id, x, y, width, height }) => {
-                                    updatesMap[id] = {
-                                        x,
-                                        y,
-                                        width: width ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].width,
-                                        height: height ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].height,
-                                    };
-                                });
-                                batchUpdateAtPath(navigationPathRef.current, updatesMap, { silent: true });
-                                setPreOrganizeSnapshot(null);
-                            }}
-                            className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                            title="Undo organize"
-                        >
-                            <Undo2 size={20} className="text-white/60 group-hover:text-orange-400 transition-colors" />
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Undo</span>
-                        </button>
-                    </>
+                    <button
+                        onClick={() => {
+                            const updatesMap: Record<string, Partial<CanvasItem>> = {};
+                            preOrganizeSnapshot.forEach(({ id, x, y, width, height }) => {
+                                updatesMap[id] = {
+                                    x,
+                                    y,
+                                    width: width ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].width,
+                                    height: height ?? ITEM_DEFAULTS[currentItems.find(i => i.id === id)?.type || 'text'].height,
+                                };
+                            });
+                            batchUpdateAtPath(navigationPathRef.current, updatesMap, { silent: true });
+                            setPreOrganizeSnapshot(null);
+                        }}
+                        className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                        title="Undo organize"
+                    >
+                        <Undo2 size={20} className="text-white/60 group-hover:text-orange-400 transition-colors" />
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Undo</span>
+                    </button>
                 )}
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
                     onClick={() => { setViewMode((v) => v === 'inbox' ? 'canvas' : 'inbox'); setInboxResurfaceFilter(false); }}
@@ -1332,8 +1343,6 @@ export const Canvas: React.FC = () => {
                     </div>
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Inbox</span>
                 </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
                     onClick={() => setViewMode((v) => v === 'archive' ? 'canvas' : 'archive')}
@@ -1370,26 +1379,13 @@ export const Canvas: React.FC = () => {
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
-                    onClick={() => setShowSearch(true)}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                    title="Search (Ctrl+K)"
+                    onClick={() => setShowSitemap((v) => !v)}
+                    className={`flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group ${showSitemap ? 'bg-purple-500/15' : ''}`}
+                    title="Canvas Map (tree view)"
                 >
-                    <Search size={20} className="text-white/60 group-hover:text-sky-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Search</span>
+                    <Network size={20} className={`transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/60 group-hover:text-purple-400'}`} />
+                    <span className={`text-[10px] uppercase font-bold tracking-wider transition-colors ${showSitemap ? 'text-purple-400' : 'text-white/30 group-hover:text-white/60'}`}>Tree</span>
                 </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
-
-                <button
-                    onClick={() => setShowStatsBoard(true)}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                    title="Stats Board"
-                >
-                    <BarChart3 size={20} className="text-white/60 group-hover:text-violet-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Stats</span>
-                </button>
-
-                <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <div className="relative group/datebtn">
                     <button
@@ -1536,6 +1532,26 @@ export const Canvas: React.FC = () => {
                         );
                     })()}
                 </div>
+
+                <button
+                    onClick={() => setShowStatsBoard(true)}
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                    title="Stats Board"
+                >
+                    <BarChart3 size={20} className="text-white/60 group-hover:text-violet-400 transition-colors" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Stats</span>
+                </button>
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
+                <button
+                    onClick={() => setShowSearch(true)}
+                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
+                    title="Search (Ctrl+K)"
+                >
+                    <Search size={20} className="text-white/60 group-hover:text-sky-400 transition-colors" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Search</span>
+                </button>
             </div>
 
             {/* App Header */}
