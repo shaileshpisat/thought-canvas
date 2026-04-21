@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, ChevronRight, ChevronDown, FolderOpen, Folder, Home, LayoutList } from 'lucide-react';
+import { X, ChevronRight, ChevronDown, FolderOpen, Folder, Home, LayoutList, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { CanvasItem, FinancialEntry } from '@/types/canvas';
 
 // ── Stat helpers ────────────────────────────────────────────────────────────
@@ -84,10 +84,18 @@ interface TreeNodeProps {
     currentPath: string[];
     depth: number;
     showDetails: boolean;
+    reorderMode: boolean;
+    siblingIndex: number;
+    siblingCount: number;
     onNavigate: (path: string[]) => void;
+    onReorder: (parentPath: string[], fromIndex: number, toIndex: number) => void;
 }
 
-const TreeNode: React.FC<TreeNodeProps> = ({ item, path, currentPath, depth, showDetails, onNavigate }) => {
+const TreeNode: React.FC<TreeNodeProps> = ({
+    item, path, currentPath, depth, showDetails,
+    reorderMode, siblingIndex, siblingCount,
+    onNavigate, onReorder,
+}) => {
     const subCanvases = (item.children ?? []).filter((c) => c.type === 'canvas');
 
     const isActive = path.length === currentPath.length && path.every((id, i) => currentPath[i] === id);
@@ -95,6 +103,20 @@ const TreeNode: React.FC<TreeNodeProps> = ({ item, path, currentPath, depth, sho
 
     const [open, setOpen] = useState(isActive || isAncestor || subCanvases.length > 0);
     const hasChildren = subCanvases.length > 0;
+
+    const parentPath = path.slice(0, -1);
+    const canMoveUp = siblingIndex > 0;
+    const canMoveDown = siblingIndex < siblingCount - 1;
+    const [seqDraft, setSeqDraft] = useState<string>(String(siblingIndex + 1));
+    React.useEffect(() => { setSeqDraft(String(siblingIndex + 1)); }, [siblingIndex]);
+
+    const commitSeq = () => {
+        const n = parseInt(seqDraft, 10);
+        if (!Number.isFinite(n)) { setSeqDraft(String(siblingIndex + 1)); return; }
+        const target = Math.max(1, Math.min(siblingCount, n)) - 1;
+        if (target !== siblingIndex) onReorder(parentPath, siblingIndex, target);
+        else setSeqDraft(String(siblingIndex + 1));
+    };
 
     // stats
     const subCount = countSubCanvases(item);
@@ -132,7 +154,41 @@ const TreeNode: React.FC<TreeNodeProps> = ({ item, path, currentPath, depth, sho
                         : <Folder size={14} className={`shrink-0 ${isActive ? 'text-purple-400' : 'text-white/30 group-hover:text-purple-400/60'}`} />
                     }
                     <span className="text-xs font-medium flex-1">{item.content || 'Untitled Canvas'}</span>
-                    {isActive && (
+                    {reorderMode && (
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <input
+                                type="number"
+                                min={1}
+                                max={siblingCount}
+                                value={seqDraft}
+                                onChange={(e) => setSeqDraft(e.target.value)}
+                                onBlur={commitSeq}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                                    if (e.key === 'Escape') { setSeqDraft(String(siblingIndex + 1)); (e.target as HTMLInputElement).blur(); }
+                                }}
+                                className="w-10 text-center text-[10px] font-bold text-white/80 bg-white/5 border border-white/10 rounded px-1 py-0.5 focus:outline-none focus:border-purple-400/60 focus:bg-white/10"
+                                title={`Sequence (1–${siblingCount})`}
+                            />
+                            <button
+                                onClick={() => canMoveUp && onReorder(parentPath, siblingIndex, siblingIndex - 1)}
+                                disabled={!canMoveUp}
+                                className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-purple-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60 transition-colors"
+                                title="Move up"
+                            >
+                                <ArrowUp size={12} />
+                            </button>
+                            <button
+                                onClick={() => canMoveDown && onReorder(parentPath, siblingIndex, siblingIndex + 1)}
+                                disabled={!canMoveDown}
+                                className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-purple-300 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/60 transition-colors"
+                                title="Move down"
+                            >
+                                <ArrowDown size={12} />
+                            </button>
+                        </div>
+                    )}
+                    {!reorderMode && isActive && (
                         <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400/70 shrink-0">here</span>
                     )}
                 </div>
@@ -164,7 +220,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ item, path, currentPath, depth, sho
 
             {open && hasChildren && (
                 <div>
-                    {subCanvases.map((child) => (
+                    {subCanvases.map((child, idx) => (
                         <TreeNode
                             key={child.id}
                             item={child}
@@ -172,7 +228,11 @@ const TreeNode: React.FC<TreeNodeProps> = ({ item, path, currentPath, depth, sho
                             currentPath={currentPath}
                             depth={depth + 1}
                             showDetails={showDetails}
+                            reorderMode={reorderMode}
+                            siblingIndex={idx}
+                            siblingCount={subCanvases.length}
                             onNavigate={onNavigate}
+                            onReorder={onReorder}
                         />
                     ))}
                 </div>
@@ -187,6 +247,7 @@ interface CanvasSitemapPanelProps {
     items: CanvasItem[];
     currentPath: string[];
     onNavigate: (path: string[]) => void;
+    onReorder: (parentPath: string[], fromIndex: number, toIndex: number) => void;
     onClose: () => void;
 }
 
@@ -194,12 +255,15 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
     items,
     currentPath,
     onNavigate,
+    onReorder,
     onClose,
 }) => {
     const rootCanvases = items.filter((i) => i.type === 'canvas');
     const [showDetails, setShowDetails] = useState(false);
+    const [reorderMode, setReorderMode] = useState(false);
 
     const handleNavigate = (path: string[]) => {
+        if (reorderMode) return; // clicks in reorder mode shouldn't navigate
         onNavigate(path);
         onClose();
     };
@@ -220,6 +284,18 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setReorderMode((v) => !v)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                                reorderMode
+                                    ? 'bg-amber-500/20 text-amber-300'
+                                    : 'text-white/40 hover:bg-white/10 hover:text-white/70'
+                            }`}
+                            title="Reorder canvases via up/down arrows or sequence number"
+                        >
+                            <ArrowUpDown size={12} />
+                            {reorderMode ? 'Done' : 'Reorder'}
+                        </button>
                         <button
                             onClick={() => setShowDetails((v) => !v)}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
@@ -287,7 +363,7 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
                     {rootCanvases.length === 0 ? (
                         <p className="text-xs text-white/30 text-center py-6">No sub-canvases yet</p>
                     ) : (
-                        rootCanvases.map((canvas) => (
+                        rootCanvases.map((canvas, idx) => (
                             <TreeNode
                                 key={canvas.id}
                                 item={canvas}
@@ -295,7 +371,11 @@ export const CanvasSitemapPanel: React.FC<CanvasSitemapPanelProps> = ({
                                 currentPath={currentPath}
                                 depth={0}
                                 showDetails={showDetails}
+                                reorderMode={reorderMode}
+                                siblingIndex={idx}
+                                siblingCount={rootCanvases.length}
                                 onNavigate={handleNavigate}
+                                onReorder={onReorder}
                             />
                         ))
                     )}

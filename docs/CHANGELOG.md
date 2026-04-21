@@ -9,6 +9,14 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.3.0
+
+### Features
+
+- **Reorder canvases in Canvas Map** — a new **Reorder** toggle in the Canvas Map header unlocks inline controls on every canvas entry. Move a canvas up or down among its siblings with the arrow buttons, or type a sequence number directly to jump it to a specific position. Reorder controls are scoped to the Canvas Map only and don't appear elsewhere. Clicks don't navigate while reorder mode is active, so you can rearrange without losing your place.
+
+---
+
 ## v2.2.1
 
 ### Improvements

@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.3.0',
+    sections: [
+      {
+        heading: 'Features',
+        changes: [
+          'Reorder canvases in Canvas Map — a new Reorder toggle in the Canvas Map header unlocks inline controls on every canvas entry. Move a canvas up or down among its siblings with the arrow buttons, or type a sequence number directly to jump it to a specific position. Reorder controls are scoped to the Canvas Map only.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.2.1',
     sections: [
       {

@@ -282,6 +282,27 @@ export const useCanvas = () => {
     [batchUpdateAtPath]
   );
 
+  /** Reorder canvas-type items within a parent. Non-canvas items keep their positions in the array. */
+  const reorderCanvasAtPath = useCallback(
+    (parentPath: string[], fromIndex: number, toIndex: number) => {
+      setState((prev) => ({
+        ...prev,
+        items: updateItemsAtPath(prev.items, parentPath, (items) => {
+          const canvases = items.filter((i) => i.type === 'canvas');
+          if (fromIndex < 0 || fromIndex >= canvases.length) return items;
+          const clampedTo = Math.max(0, Math.min(canvases.length - 1, toIndex));
+          if (fromIndex === clampedTo) return items;
+          const reordered = [...canvases];
+          const [moved] = reordered.splice(fromIndex, 1);
+          reordered.splice(clampedTo, 0, moved);
+          let ci = 0;
+          return items.map((i) => (i.type === 'canvas' ? reordered[ci++] : i));
+        }),
+      }));
+    },
+    []
+  );
+
   // Root-level convenience wrappers (path = [])
   const addItem = useCallback(
     (item: Omit<CanvasItem, 'id'> & { id?: string }) =>
@@ -477,6 +498,7 @@ export const useCanvas = () => {
     updateItemAtPath,
     removeItemAtPath,
     moveItemAtPath,
+    reorderCanvasAtPath,
     batchUpdateAtPath,
     moveItemBetweenPaths,
     logHistoryAtPath,

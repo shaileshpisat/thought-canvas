@@ -88,6 +88,7 @@ export const Canvas: React.FC = () => {
         updateItemAtPath,
         removeItemAtPath,
         moveItemAtPath,
+        reorderCanvasAtPath,
         moveItemBetweenPaths,
         logHistoryAtPath,
         batchUpdate,
@@ -1885,6 +1886,7 @@ export const Canvas: React.FC = () => {
                     items={state.items}
                     currentPath={navigationPath}
                     onNavigate={(path) => setNavigationPath(path)}
+                    onReorder={reorderCanvasAtPath}
                     onClose={() => setShowSitemap(false)}
                 />
             )}
