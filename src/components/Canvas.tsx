@@ -2047,6 +2047,7 @@ export const Canvas: React.FC = () => {
             {showStatsBoard && (
                 <StatsBoard
                     allItems={state.items}
+                    wallets={state.wallets ?? []}
                     onNavigate={(path, itemId) => {
                         setNavigationPath(path);
                         if (itemId) {

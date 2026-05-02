@@ -3,9 +3,9 @@
 import React, { useEffect, useMemo } from 'react';
 import {
     BarChart3, Type, Image as ImageIcon, Layers, Link as LinkIcon,
-    Hash, Calendar, Repeat, Home, ChevronRight, Pin,
+    Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet,
 } from 'lucide-react';
-import { CanvasItem } from '@/types/canvas';
+import { CanvasItem, WalletAccount, FinancialEntry } from '@/types/canvas';
 import { flattenItems, recursOnDate, todayDateStr } from '@/utils/dateUtils';
 
 interface BlockRow {
@@ -70,13 +70,49 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
     canvas: <Layers    size={13} className="text-purple-400/80"  />,
 };
 
+interface WalletSummary {
+    wallet: WalletAccount | { id: string; name: string; accountType: string };
+    totalIn: number;
+    totalOut: number;
+    net: number;
+}
+
+const UNASSIGNED_ID = '__unassigned__';
+const INFLOW_TYPES = new Set(['income', 'inflow', 'redemption']);
+
+function buildWalletSummaries(allFlat: CanvasItem[], wallets: WalletAccount[]): WalletSummary[] {
+    const totals = new Map<string, { totalIn: number; totalOut: number }>();
+    for (const w of wallets) totals.set(w.id, { totalIn: 0, totalOut: 0 });
+    totals.set(UNASSIGNED_ID, { totalIn: 0, totalOut: 0 });
+
+    for (const item of allFlat) {
+        for (const fe of (item.financials ?? []) as FinancialEntry[]) {
+            const key = fe.wallet && totals.has(fe.wallet) ? fe.wallet : UNASSIGNED_ID;
+            const t = totals.get(key)!;
+            if (INFLOW_TYPES.has(fe.type)) t.totalIn += fe.amount;
+            else t.totalOut += fe.amount;
+        }
+    }
+
+    const results: WalletSummary[] = wallets
+        .map(w => { const t = totals.get(w.id)!; return { wallet: w, ...t, net: t.totalIn - t.totalOut }; })
+        .filter(s => s.totalIn > 0 || s.totalOut > 0);
+
+    const u = totals.get(UNASSIGNED_ID)!;
+    if (u.totalIn > 0 || u.totalOut > 0) {
+        results.push({ wallet: { id: UNASSIGNED_ID, name: 'Unassigned', accountType: '' }, ...u, net: u.totalIn - u.totalOut });
+    }
+    return results;
+}
+
 interface Props {
     allItems: CanvasItem[];
+    wallets: WalletAccount[];
     onNavigate: (path: string[], itemId?: string) => void;
     onClose: () => void;
 }
 
-export const StatsBoard: React.FC<Props> = ({ allItems, onNavigate, onClose }) => {
+export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose }) => {
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -109,6 +145,14 @@ export const StatsBoard: React.FC<Props> = ({ allItems, onNavigate, onClose }) =
     }, [allFlat]);
 
     const maxTagCount = tagCounts.length > 0 ? tagCounts[0][1] : 0;
+
+    const walletSummaries = useMemo(
+        () => buildWalletSummaries(allFlat, wallets),
+        [allFlat, wallets],
+    );
+
+    const fmt = (n: number) =>
+        n.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 
     const todayBlocks = useMemo(
         () => rows.filter(r => r.item.date === today && !r.item.recurring),
@@ -249,6 +293,41 @@ export const StatsBoard: React.FC<Props> = ({ allItems, onNavigate, onClose }) =
                         </div>
                         <HorizontalCardStrip rows={recurringToday} onSelect={navigate} emptyText="No recurring blocks fall on today." scheme="emerald" showRecurringMark />
                     </section>
+
+                    {/* Wallet Aggregates */}
+                    {walletSummaries.length > 0 && (
+                        <section>
+                            <div className="flex items-center gap-2 mb-2">
+                                <Wallet size={12} className="text-sky-400/80" />
+                                <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Wallet Balances</div>
+                                <div className="text-[10px] text-white/25">{walletSummaries.length}</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                                {walletSummaries.map(({ wallet, totalIn, totalOut, net }) => (
+                                    <div
+                                        key={wallet.id}
+                                        className={`rounded-xl border px-3 py-3 flex flex-col gap-1 ${wallet.id === UNASSIGNED_ID ? 'border-white/5 border-dashed bg-white/[0.02]' : 'border-white/8 bg-white/[0.03]'}`}
+                                    >
+                                        <div className="flex items-center justify-between gap-1 min-w-0">
+                                            <span className={`text-[11px] font-semibold truncate ${wallet.id === UNASSIGNED_ID ? 'text-white/30 italic' : 'text-white/70'}`}>
+                                                {wallet.name}
+                                            </span>
+                                            {wallet.accountType && (
+                                                <span className="text-[9px] text-white/25 uppercase tracking-wider shrink-0">{wallet.accountType}</span>
+                                            )}
+                                        </div>
+                                        <div className={`text-xl font-black font-mono tabular-nums ${net >= 0 ? 'text-emerald-300' : 'text-red-400'}`}>
+                                            {fmt(net)}
+                                        </div>
+                                        <div className="flex gap-2 text-[10px]">
+                                            <span className="text-emerald-400/60">↑ {fmt(totalIn)}</span>
+                                            <span className="text-red-400/60">↓ {fmt(totalOut)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
             </div>
         </div>

@@ -9,6 +9,13 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.7.1
+
+### Fix
+- **Stats Board** — Wallet Balances section now shows each wallet's net balance, total inflows, and total outflows. Entries with no wallet assigned appear under an "Unassigned" bucket.
+
+---
+
 ## v2.7.0
 
 ### New Feature

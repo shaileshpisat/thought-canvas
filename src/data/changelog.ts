@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.1',
+    sections: [
+      {
+        heading: 'Fix',
+        changes: [
+          'Stats Board — Wallet Balances section now appears in the Stats Board, showing net balance, total inflows, and total outflows per wallet. Entries with no wallet assigned are grouped under "Unassigned".',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.7.0',
     sections: [
       {
