@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.3',
+    sections: [
+      {
+        heading: 'Fix',
+        changes: [
+          'Dates menu calendar now shows recurring items on their occurrence dates for the viewed month, rather than only on the original saved date.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.7.2',
     sections: [
       {

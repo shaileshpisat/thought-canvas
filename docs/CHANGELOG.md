@@ -9,6 +9,13 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.7.3
+
+### Fix
+- Dates menu calendar now shows recurring items on their occurrence dates for the viewed month, rather than only on the original saved date.
+
+---
+
 ## v2.7.2
 
 ### Improvement

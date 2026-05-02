@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CanvasItem } from '@/types/canvas';
-import { getDateStatus, flattenItems } from '@/utils/dateUtils';
+import { getDateStatus, flattenItems, recursOnDate } from '@/utils/dateUtils';
 
 interface Props {
   items: CanvasItem[];
@@ -14,13 +14,7 @@ export const DateCalendar: React.FC<Props> = ({ items, onClose }) => {
   const today = new Date();
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
 
-  const datesWithItems = new Map<string, number>(); // date -> count
   const allItems = flattenItems(items);
-  for (const item of allItems) {
-    if (item.date) {
-      datesWithItems.set(item.date, (datesWithItems.get(item.date) ?? 0) + 1);
-    }
-  }
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -28,15 +22,32 @@ export const DateCalendar: React.FC<Props> = ({ items, onClose }) => {
   const lastDay = new Date(year, month + 1, 0);
   const startPad = (firstDay.getDay() + 6) % 7;
 
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const getDateStr = (day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
+
+  const datesWithItems = new Map<string, number>(); // date -> count
+  for (const item of allItems) {
+    if (!item.date) continue;
+    if (item.recurring) {
+      // Show dot on each day of the viewed month where this item recurs
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const dayStr = getDateStr(d);
+        if (recursOnDate(item, dayStr)) {
+          datesWithItems.set(dayStr, (datesWithItems.get(dayStr) ?? 0) + 1);
+        }
+      }
+    } else {
+      datesWithItems.set(item.date, (datesWithItems.get(item.date) ?? 0) + 1);
+    }
+  }
+
   const days: (number | null)[] = [];
   for (let i = 0; i < startPad; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(d);
 
   const monthName = viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const pad = (n: number) => String(n).padStart(2, '0');
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-  const getDateStr = (day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
 
   // Stats
   const itemsWithDate = allItems.filter((i) => i.date);
