@@ -3,7 +3,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CalendarDays, X, Type, Image as ImageIcon, Link as LinkIcon, Layers, ChevronRight, Home, ChevronLeft } from 'lucide-react';
 import { CanvasItem } from '@/types/canvas';
-import { getDateStatus } from '@/utils/dateUtils';
+import { getDateStatus, recursOnDate } from '@/utils/dateUtils';
 
 interface DateResult {
     item: CanvasItem;
@@ -75,10 +75,38 @@ export const DateFilterPanel: React.FC<Props> = ({ allItems, initialDate, onNavi
 
     const all = flattenWithPaths(allItems);
 
-    // Build a set of dates that have items, for the mini calendar
-    const datesWithItems = new Set(all.filter(r => r.item.date).map(r => r.item.date!));
+    // Build a set of dates that have items, for the mini calendar (recurring-aware, uses viewDate)
+    // Note: yr/mo/lastDay/getDs are declared below — we compute them inline here too.
+    const buildDatesWithItems = (viewYr: number, viewMo: number) => {
+        const vLastDay = new Date(viewYr, viewMo + 1, 0);
+        const vGetDs = (d: number) => `${viewYr}-${pad(viewMo + 1)}-${pad(d)}`;
+        const set = new Set<string>();
+        for (const { item } of all) {
+            if (!item.date) continue;
+            if (item.recurring) {
+                const isCurrentMonth = today.getFullYear() === viewYr && today.getMonth() === viewMo;
+                if (isCurrentMonth && recursOnDate(item, todayStr)) {
+                    set.add(todayStr);
+                } else {
+                    for (let d = 1; d <= vLastDay.getDate(); d++) {
+                        const ds2 = vGetDs(d);
+                        if (recursOnDate(item, ds2)) { set.add(ds2); break; }
+                    }
+                }
+            } else {
+                set.add(item.date);
+            }
+        }
+        return set;
+    };
+    const datesWithItems = buildDatesWithItems(viewDate.getFullYear(), viewDate.getMonth());
 
-    const results = all.filter(r => r.item.date === selectedDate);
+    // Include items whose stored date matches OR whose recurrence fires on selectedDate
+    const results = all.filter(r =>
+        r.item.date && (
+            r.item.recurring ? recursOnDate(r.item, selectedDate) : r.item.date === selectedDate
+        )
+    );
 
     useEffect(() => { setActiveIndex(0); }, [selectedDate]);
 

@@ -12,7 +12,7 @@ Format: `vMAJOR.MINOR.PATCH`
 ## v2.7.3
 
 ### Fix
-- Dates menu calendar now shows recurring items on their occurrence dates for the viewed month, rather than only on the original saved date.
+- Dates menu calendar and date filter popup both show recurring items on their current-month occurrence date (today if active today, otherwise first occurrence in the viewed month), and the results list correctly includes recurring items when clicking their occurrence date.
 
 ---
 

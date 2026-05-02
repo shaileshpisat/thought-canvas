@@ -51,7 +51,7 @@ import { CHANGELOG } from '@/data/changelog';
 
 import { findEmptyLocation, organizeItems } from '@/utils/canvasUtils';
 import { ITEM_DEFAULTS } from '@/utils/canvasConstants';
-import { flattenItems, getDateStatus, getDateBucket } from '@/utils/dateUtils';
+import { flattenItems, getDateStatus, getDateBucket, recursOnDate } from '@/utils/dateUtils';
 import { CanvasItem, WalletAccount, WalletAccountType } from '@/types/canvas';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { useImageStorageTracker } from '@/hooks/useImageStorageTracker';
@@ -314,7 +314,31 @@ export const Canvas: React.FC = () => {
     // Date stats across all items (including nested)
     const allFlat = flattenItems(state.items);
     const itemsWithDate = allFlat.filter((i) => i.date);
-    const bucket = (b: string) => itemsWithDate.filter((i) => getDateBucket(i.date!) === b).length;
+
+    // For recurring items, resolve the effective date: today if active today,
+    // else the next upcoming occurrence, else the most recent past occurrence.
+    const getEffectiveDate = (item: ReturnType<typeof flattenItems>[number]): string => {
+        if (!item.recurring) return item.date!;
+        const todayD = new Date();
+        const pad2 = (n: number) => String(n).padStart(2, '0');
+        const tStr = `${todayD.getFullYear()}-${pad2(todayD.getMonth() + 1)}-${pad2(todayD.getDate())}`;
+        if (recursOnDate(item, tStr)) return tStr;
+        // Search up to 366 days forward for next occurrence
+        for (let i = 1; i <= 366; i++) {
+            const d = new Date(todayD); d.setDate(d.getDate() + i);
+            const s = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            if (recursOnDate(item, s)) return s;
+        }
+        // Search up to 366 days back for last occurrence
+        for (let i = 1; i <= 366; i++) {
+            const d = new Date(todayD); d.setDate(d.getDate() - i);
+            const s = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            if (recursOnDate(item, s)) return s;
+        }
+        return item.date!;
+    };
+
+    const bucket = (b: string) => itemsWithDate.filter((i) => getDateBucket(getEffectiveDate(i)) === b).length;
     const todayCount     = bucket('today');
     const yesterdayCount = bucket('yesterday');
     const tomorrowCount  = bucket('tomorrow');
@@ -1483,7 +1507,24 @@ export const Canvas: React.FC = () => {
                         const getDs = (d: number) => `${yr}-${pad(mo + 1)}-${pad(d)}`;
                         const datesMap = new Map<string, string>();
                         for (const item of itemsWithDate) {
-                            if (item.date && !datesMap.has(item.date)) {
+                            if (!item.date) continue;
+                            if (item.recurring) {
+                                // For recurring items: show on today if active today (current month),
+                                // otherwise the first occurrence in the viewed month.
+                                const isCurrentMonth = today.getFullYear() === yr && today.getMonth() === mo;
+                                let dotDate: string | null = null;
+                                if (isCurrentMonth && recursOnDate(item, todayStr)) {
+                                    dotDate = todayStr;
+                                } else {
+                                    for (let d = 1; d <= lastDay.getDate(); d++) {
+                                        const ds2 = getDs(d);
+                                        if (recursOnDate(item, ds2)) { dotDate = ds2; break; }
+                                    }
+                                }
+                                if (dotDate && !datesMap.has(dotDate)) {
+                                    datesMap.set(dotDate, getDateStatus(dotDate));
+                                }
+                            } else if (!datesMap.has(item.date)) {
                                 datesMap.set(item.date, getDateStatus(item.date));
                             }
                         }

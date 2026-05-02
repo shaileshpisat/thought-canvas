@@ -86,6 +86,7 @@ export function recursOnDate(
   if (!item.recurring || !item.date) return false;
 
   let rule = item.recurring as import('@/types/canvas').RecurringRule | string;
+  if (!rule || (typeof rule === 'object' && !rule.freq)) return false;
   if (typeof rule === 'string') {
     const legacyMap: Record<string, import('@/types/canvas').RecurringRule> = {
       daily:    { freq: 'daily',   interval: 1, endType: 'never' },
@@ -125,12 +126,13 @@ export function recursOnDate(
     return true;
   };
 
+  const interval = r.interval || 1;
   if (r.freq === 'daily') {
     const cur = new Date(origin);
     while (cur <= target) {
       if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
       dates.push(fmt(cur));
-      cur.setDate(cur.getDate() + r.interval);
+      cur.setDate(cur.getDate() + interval);
     }
   } else if (r.freq === 'weekly') {
     const targetDays = (r.days && r.days.length > 0) ? r.days : [origin.getDay()];
@@ -144,7 +146,7 @@ export function recursOnDate(
         if (!push(d)) break outer;
       }
       if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
-      cur.setDate(cur.getDate() + r.interval * 7);
+      cur.setDate(cur.getDate() + interval * 7);
     }
   } else if (r.freq === 'monthly') {
     const useNthWeekday = r.days && r.days.length > 0;
@@ -153,7 +155,7 @@ export function recursOnDate(
       const cur = new Date(origin.getFullYear(), origin.getMonth(), dayNum);
       while (cur <= target) {
         if (!push(new Date(cur))) break;
-        cur.setMonth(cur.getMonth() + r.interval);
+        cur.setMonth(cur.getMonth() + interval);
         cur.setDate(dayNum);
       }
     } else {
@@ -170,7 +172,7 @@ export function recursOnDate(
           if (!push(candidate)) break;
         }
         if (r.endType === 'count' && r.endCount && dates.length >= r.endCount) break;
-        month += r.interval;
+        month += interval;
         if (month > 11) { year += Math.floor(month / 12); month = month % 12; }
         if (new Date(year, month, 1) > target) break;
       }
@@ -179,7 +181,7 @@ export function recursOnDate(
     const cur = new Date(origin);
     while (cur <= target) {
       if (!push(new Date(cur))) break;
-      cur.setFullYear(cur.getFullYear() + r.interval);
+      cur.setFullYear(cur.getFullYear() + interval);
     }
   }
 

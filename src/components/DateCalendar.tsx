@@ -26,16 +26,23 @@ export const DateCalendar: React.FC<Props> = ({ items, onClose }) => {
   const getDateStr = (day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
 
   const datesWithItems = new Map<string, number>(); // date -> count
+  const todayStr2 = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   for (const item of allItems) {
     if (!item.date) continue;
     if (item.recurring) {
-      // Show dot on each day of the viewed month where this item recurs
-      for (let d = 1; d <= lastDay.getDate(); d++) {
-        const dayStr = getDateStr(d);
-        if (recursOnDate(item, dayStr)) {
-          datesWithItems.set(dayStr, (datesWithItems.get(dayStr) ?? 0) + 1);
+      // Show one dot: today if it recurs today (and today is in the viewed month),
+      // otherwise the first occurrence in the viewed month.
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+      let dotDate: string | null = null;
+      if (isCurrentMonth && recursOnDate(item, todayStr2)) {
+        dotDate = todayStr2;
+      } else {
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+          const dayStr = getDateStr(d);
+          if (recursOnDate(item, dayStr)) { dotDate = dayStr; break; }
         }
       }
+      if (dotDate) datesWithItems.set(dotDate, (datesWithItems.get(dotDate) ?? 0) + 1);
     } else {
       datesWithItems.set(item.date, (datesWithItems.get(item.date) ?? 0) + 1);
     }
