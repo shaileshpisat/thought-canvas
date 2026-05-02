@@ -10,7 +10,8 @@
       "Bash(wc -l /c/Work/Git/git-ace/black-board/src/components/*.tsx)",
       "Bash(npx next:*)",
       "Bash(grep -A3 \"Canvas.tsx$\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\sppis\\.claude"

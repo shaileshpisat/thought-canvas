@@ -9,6 +9,13 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.7.2
+
+### Improvement
+- Canvas items now support the date/schedule toolbar — set a date, time, duration, and recurrence on canvas blocks just like other item types.
+
+---
+
 ## v2.7.1
 
 ### Fix

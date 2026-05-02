@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.2',
+    sections: [
+      {
+        heading: 'Improvement',
+        changes: [
+          'Canvas items now support the date/schedule toolbar — set a date, time, duration, and recurrence on canvas blocks just like other item types.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.7.1',
     sections: [
       {

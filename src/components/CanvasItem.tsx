@@ -978,7 +978,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             </>
                         )}
 
-                        {item.type !== 'canvas' && !readOnly && (<>
+                        {!readOnly && (<>
                         <div className="w-[1px] h-4 bg-white/10" />
 
                         {/* Date picker button */}
@@ -1437,7 +1437,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 )}
 
                 {/* Date overlay badge — top right of block */}
-                {item.date && dateLabel && item.type !== 'canvas' && (
+                {item.date && dateLabel && (
                     <div
                         className={`
                             absolute -top-3 right-3 z-30 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide pointer-events-none select-none
