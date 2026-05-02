@@ -34,6 +34,7 @@ import {
     Trash2,
     Tag,
     BarChart3,
+    Info,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
 import { StorageWarningBanner } from './StorageWarningBanner';
@@ -105,6 +106,7 @@ export const Canvas: React.FC = () => {
         updateArchiveItem,
         moveFromArchiveToCanvas,
         updateWallets,
+        updateInfoCardTypes,
         renameTagGlobally,
     } = useCanvas();
     const recycleBin = useRecycleBin();
@@ -115,6 +117,7 @@ export const Canvas: React.FC = () => {
     const [showStatsBoard, setShowStatsBoard] = React.useState(false);
     const [showSettings, setShowSettings] = React.useState(false);
     const [showWalletMaster, setShowWalletMaster] = React.useState(false);
+    const [showInfoTypeMaster, setShowInfoTypeMaster] = React.useState(false);
     const [showTagMaster, setShowTagMaster] = React.useState(false);
     const [editingTagNames, setEditingTagNames] = React.useState<Record<string, string>>({});
     const [showProfileMenu, setShowProfileMenu] = React.useState(false);
@@ -776,6 +779,7 @@ export const Canvas: React.FC = () => {
                             }}
                             onLogHistory={handleLogHistory}
                             walletMaster={state.wallets ?? []}
+                            infoCardTypes={state.infoCardTypes ?? []}
                             allItems={state.items.map(i =>
                                 i.type === 'canvas' && i.content === 'Inbox'
                                     ? { ...i, children: [] }
@@ -893,6 +897,7 @@ export const Canvas: React.FC = () => {
                                 }}
                                 onLogHistory={handleInboxLogHistory}
                                 walletMaster={state.wallets ?? []}
+                                infoCardTypes={state.infoCardTypes ?? []}
                                 allItems={state.items}
                                 onNavigateToBlock={() => {}}
                             />
@@ -940,6 +945,7 @@ export const Canvas: React.FC = () => {
                                 onUpdateTags={() => {}}
                                 onLogHistory={() => {}}
                                 walletMaster={state.wallets ?? []}
+                                infoCardTypes={state.infoCardTypes ?? []}
                                 allItems={state.items}
                                 onNavigateToBlock={() => {}}
                             />
@@ -1268,6 +1274,25 @@ export const Canvas: React.FC = () => {
                                     >
                                         <Layers size={16} className="text-white/40 group-hover:text-purple-400 transition-colors shrink-0" />
                                         <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Canvas</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const { x, y } = findEmptyLocation(currentItems, 64, 64);
+                                            addItem({
+                                                type: 'info',
+                                                content: 'Info',
+                                                x,
+                                                y,
+                                                width: 64,
+                                                height: 64,
+                                                infoEntries: [],
+                                            });
+                                            setShowAddMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                                    >
+                                        <Info size={16} className="text-white/40 group-hover:text-teal-400 transition-colors shrink-0" />
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Info Card</span>
                                     </button>
                                 </div>
                             </div>
@@ -1742,6 +1767,19 @@ export const Canvas: React.FC = () => {
                             </button>
 
                             <div className="h-px bg-white/10 my-2" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Info Cards</p>
+                            <button
+                                onClick={() => { setShowInfoTypeMaster(true); setShowSettings(false); }}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/60 hover:text-teal-400 hover:bg-teal-500/10 transition-all"
+                            >
+                                <Info size={16} className="shrink-0" />
+                                <div className="text-left">
+                                    <div className="font-semibold text-[13px]">Info Card Types</div>
+                                    <div className="text-[10px] text-white/30">Manage field templates for Info Cards</div>
+                                </div>
+                            </button>
+
+                            <div className="h-px bg-white/10 my-2" />
                             <p className="text-[10px] font-bold uppercase tracking-wider text-white/25 px-1 mb-2">Info</p>
 
                             <button
@@ -1811,6 +1849,91 @@ export const Canvas: React.FC = () => {
                         {/* Add new */}
                         <div className="px-4 py-3 border-t border-white/8">
                             <WalletAddForm onAdd={wallet => updateWallets([...(state.wallets ?? []), wallet])} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Info Card Types Master Modal */}
+            {showInfoTypeMaster && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center" onClick={() => setShowInfoTypeMaster(false)}>
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div
+                        className="relative w-[520px] max-h-[80vh] flex flex-col rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                        style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+                            <div className="flex items-center gap-2">
+                                <Info size={16} className="text-teal-400" />
+                                <h2 className="text-sm font-bold text-white/80 uppercase tracking-widest">Info Card Types</h2>
+                            </div>
+                            <button onClick={() => setShowInfoTypeMaster(false)} className="w-6 h-6 flex items-center justify-center rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-colors text-lg leading-none">×</button>
+                        </div>
+
+                        {/* Types list */}
+                        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-4">
+                            {(state.infoCardTypes ?? []).map((type) => (
+                                <div key={type.id} className="rounded-xl border border-white/8 bg-white/3 p-3 flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            className="flex-1 bg-transparent text-sm font-semibold text-white/90 outline-none focus:text-white min-w-0"
+                                            value={type.name}
+                                            onChange={e => updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, name: e.target.value } : t))}
+                                        />
+                                        {type.builtin && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-400 border border-teal-500/20 font-semibold shrink-0">Built-in</span>
+                                        )}
+                                        {!type.builtin && (
+                                            <button
+                                                onClick={() => updateInfoCardTypes((state.infoCardTypes ?? []).filter(t => t.id !== type.id))}
+                                                className="p-1 rounded-lg hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all shrink-0"
+                                                title="Delete type"
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-1 pl-1">
+                                        {type.fields.map((field, fi) => (
+                                            <div key={fi} className="flex items-center gap-2 group/field">
+                                                <input
+                                                    className="flex-1 bg-transparent text-xs text-white/60 outline-none focus:text-white/90 focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
+                                                    value={field}
+                                                    onChange={e => {
+                                                        const newFields = [...type.fields];
+                                                        newFields[fi] = e.target.value;
+                                                        updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, fields: newFields } : t));
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const newFields = type.fields.filter((_, i) => i !== fi);
+                                                        updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, fields: newFields } : t));
+                                                    }}
+                                                    className="opacity-0 group-hover/field:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-white/30 hover:text-red-400 transition-all"
+                                                    title="Remove field"
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={() => updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, fields: [...t.fields, `Field ${t.fields.length + 1}`] } : t))}
+                                            className="flex items-center gap-1.5 text-[11px] text-white/30 hover:text-teal-400 transition-colors py-0.5 w-fit"
+                                        >
+                                            <Plus size={11} />
+                                            Add field
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add new type */}
+                        <div className="px-4 py-3 border-t border-white/8 shrink-0">
+                            <InfoTypeAddForm onAdd={newType => updateInfoCardTypes([...(state.infoCardTypes ?? []), newType])} />
                         </div>
                     </div>
                 </div>
@@ -2007,6 +2130,35 @@ export const Canvas: React.FC = () => {
         </div>
     );
 };
+
+function InfoTypeAddForm({ onAdd }: { onAdd: (t: import('@/types/canvas').InfoCardType) => void }) {
+    const [name, setName] = React.useState('');
+    return (
+        <form
+            onSubmit={e => {
+                e.preventDefault();
+                if (!name.trim()) return;
+                onAdd({ id: crypto.randomUUID(), name: name.trim(), fields: [] });
+                setName('');
+            }}
+            className="flex items-center gap-2"
+        >
+            <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="New type name…"
+                className="flex-1 text-sm px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/80 placeholder-white/25 focus:outline-none focus:border-teal-500/50 transition-all"
+            />
+            <button
+                type="submit"
+                className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-teal-500/20 text-teal-400 ring-1 ring-teal-500/30 hover:bg-teal-500/30 transition-colors shrink-0"
+            >
+                Add
+            </button>
+        </form>
+    );
+}
 
 function WalletAddForm({ onAdd }: { onAdd: (w: WalletAccount) => void }) {
     const [name, setName] = React.useState('');

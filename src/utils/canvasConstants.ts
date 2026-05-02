@@ -5,6 +5,7 @@ export const ITEM_DEFAULTS: Record<ItemType, { width: number; height: number }> 
   image:  { width: 300, height: 200 },
   link:   { width: 300, height: 280 },
   canvas: { width: 320, height: 240 },
+  info:   { width: 64,  height: 64  },
 };
 
 export const ORG_GAP = 32;

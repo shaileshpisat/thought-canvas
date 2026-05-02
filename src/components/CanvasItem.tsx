@@ -4,8 +4,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { CanvasItem as ICanvasItem } from '@/types/canvas';
-import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive, IndianRupee, Pin } from 'lucide-react';
-import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry, FinancialEntry, FinancialType } from '@/types/canvas';
+import { Trash2, ExternalLink, GripVertical, Edit3, ArrowRight, ArrowUpLeft, LogIn, Layers, X, Maximize2, Eye, Calendar, ChevronDown, Flag, ScanSearch, Play, Pause, Square, ListPlus, Clock, Plus, Hash, History, Move, Settings2, Archive, IndianRupee, Pin, Info, Check } from 'lucide-react';
+import { Priority, CanvasTimer, CanvasAction, CanvasHistoryEntry, FinancialEntry, FinancialType, InfoEntry } from '@/types/canvas';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getRelativeLabel, getDateStatus } from '@/utils/dateUtils';
@@ -66,6 +66,7 @@ interface Props {
     allItems?: ICanvasItem[];
     onNavigateToBlock?: (path: string[], itemId: string) => void;
     walletMaster?: import('@/types/canvas').WalletAccount[];
+    infoCardTypes?: import('@/types/canvas').InfoCardType[];
     readOnly?: boolean;
 }
 
@@ -263,7 +264,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
         : <div className="w-full h-full bg-white/5 animate-pulse" />;
 };
 
-export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, isBlockNavHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], readOnly = false }) => {
+export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, isBlockNavHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], infoCardTypes = [], readOnly = false }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -294,6 +295,9 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const [blockPickerPos, setBlockPickerPos] = useState<{ top: number; left: number } | null>(null);
     const [isEditingCaption, setIsEditingCaption] = useState(false);
     const captionInputRef = useRef<HTMLInputElement>(null);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
+    const [editingKeyText, setEditingKeyText] = useState('');
 
     const blockPickerTriggerPos = useRef<number>(0); // cursor position where [[ was typed
 
@@ -827,6 +831,36 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 );
             }
 
+            case 'info': {
+                const entries = item.infoEntries ?? [];
+                const resolvedTypeName = item.infoType === 'freeform'
+                    ? 'Freeform'
+                    : item.infoType
+                        ? (infoCardTypes.find(t => t.id === item.infoType)?.name ?? item.infoType)
+                        : null;
+                const firstValue = entries[0]?.value ?? '';
+                return (
+                    <div
+                        className="w-full h-full flex items-center justify-center cursor-pointer select-none"
+                        onDoubleClick={(e) => { e.stopPropagation(); setShowInfoModal(true); }}
+                    >
+                        <div className="flex flex-col items-center gap-1">
+                            {resolvedTypeName ? (
+                                <span className="text-[9px] font-bold text-teal-400/80 text-center leading-tight max-w-[72px] truncate">{resolvedTypeName}</span>
+                            ) : (
+                                <span className="text-[9px] text-white/30 italic">No type</span>
+                            )}
+                            {firstValue && (
+                                <span className="text-[8px] text-white/40 text-center max-w-[72px] truncate">{firstValue}</span>
+                            )}
+                            {entries.length > 0 && (
+                                <span className="text-[8px] text-teal-400/50">{entries.length} field{entries.length !== 1 ? 's' : ''}</span>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
             default:
                 return null;
         }
@@ -869,6 +903,8 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 ${isHovered
                     ? item.type === 'canvas'
                         ? 'ring-2 ring-purple-500/50 shadow-lg shadow-purple-500/10'
+                        : item.type === 'info'
+                        ? 'ring-2 ring-teal-500/50 shadow-lg shadow-teal-500/10'
                         : dateStatus === 'past-old'
                         ? 'ring-2 ring-red-500/60 shadow-lg shadow-red-500/15'
                         : 'ring-2 ring-sky-500/50 shadow-lg shadow-sky-500/10'
@@ -1658,7 +1694,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
 
                 {/* Resize handle */}
-                {isHovered && (
+                {isHovered && item.type !== 'info' && (
                     <div
                         className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1"
                         onPointerDown={handleResizePointerDown}
@@ -1669,7 +1705,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
             </div>
 
             {/* History & Timer section — floats below the card */}
-            {(showHistory || showFinancials || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (isHovered && item.type !== 'canvas')) && (
+            {item.type !== 'info' && (showHistory || showFinancials || (item.financials?.length ?? 0) > 0 || (item.type === 'canvas' && canvasFinancialNet(item) !== 0) || (item.timer && (item.timer.isRunning || item.timer.totalElapsed > 0)) || (isHovered && item.type !== 'canvas')) && (
                 <div
                     className="group/timer absolute left-2 right-2 z-30 flex flex-col gap-1"
                     style={{ top: currentHeight + 6 }}
@@ -2132,6 +2168,214 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         );
                     })()}
                 </div>
+            )}
+
+            {/* Info Card modal */}
+            {showInfoModal && item.type === 'info' && createPortal(
+                <div
+                    className="fixed inset-0 z-[1000] flex items-center justify-center"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) {
+                            // Lock type on close if one was chosen
+                            if (item.infoType && !item.infoTypeLocked) {
+                                onUpdate(item.id, { infoTypeLocked: true });
+                            }
+                            setShowInfoModal(false);
+                        }
+                    }}
+                >
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div className="relative z-10 w-[500px] max-w-[96vw] glass-dark rounded-2xl shadow-2xl shadow-black/60 ring-1 ring-white/15 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+
+                        {/* ── Phase 1: Type picker ── */}
+                        {!item.infoType && !item.infoTypeLocked ? (
+                            <>
+                                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/10 shrink-0">
+                                    <Info size={16} className="text-teal-400 shrink-0" />
+                                    <span className="flex-1 text-sm font-semibold text-white/80">Choose a type</span>
+                                    <button
+                                        onMouseDown={(e) => { e.stopPropagation(); setShowInfoModal(false); }}
+                                        className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    >
+                                        <X size={15} />
+                                    </button>
+                                </div>
+                                <div className="p-4 grid grid-cols-2 gap-2 overflow-y-auto max-h-[70vh]" onMouseDown={(e) => e.stopPropagation()}>
+                                    {infoCardTypes.map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => {
+                                                const entries: InfoEntry[] = t.fields.map((f) => ({ id: crypto.randomUUID(), key: f, value: '' }));
+                                                onUpdate(item.id, { infoType: t.id, infoEntries: entries });
+                                            }}
+                                            className="flex flex-col items-start gap-1.5 p-3 rounded-xl bg-white/4 hover:bg-teal-500/10 border border-white/8 hover:border-teal-500/30 transition-all text-left group"
+                                        >
+                                            <span className="text-sm font-semibold text-white/80 group-hover:text-teal-300 transition-colors">{t.name}</span>
+                                            <span className="text-[10px] text-white/35 leading-relaxed">{t.fields.slice(0, 4).join(', ')}{t.fields.length > 4 ? '…' : ''}</span>
+                                        </button>
+                                    ))}
+                                    {/* Freeform option */}
+                                    <button
+                                        onClick={() => onUpdate(item.id, { infoType: 'freeform', infoEntries: [] })}
+                                        className="flex flex-col items-start gap-1.5 p-3 rounded-xl bg-white/4 hover:bg-white/8 border border-dashed border-white/15 hover:border-white/30 transition-all text-left group"
+                                    >
+                                        <span className="text-sm font-semibold text-white/60 group-hover:text-white/90 transition-colors">Freeform</span>
+                                        <span className="text-[10px] text-white/30 leading-relaxed">Custom fields, no template</span>
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            /* ── Phase 2: Key-value form ── */
+                            (() => {
+                                const resolvedTypeName = item.infoType === 'freeform'
+                                    ? 'Freeform'
+                                    : infoCardTypes.find(t => t.id === item.infoType)?.name ?? item.infoType ?? '';
+                                return (
+                                    <>
+                                        {/* Header */}
+                                        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/10 shrink-0">
+                                            <Info size={16} className="text-teal-400 shrink-0" />
+                                            <input
+                                                className="flex-1 bg-transparent outline-none text-sm font-semibold text-white/90 placeholder-white/30 min-w-0"
+                                                value={item.content}
+                                                placeholder="Info Card title..."
+                                                onChange={(e) => onUpdate(item.id, { content: e.target.value })}
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                            />
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-400 border border-teal-500/25 shrink-0">{resolvedTypeName}</span>
+                                            <button
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    if (item.infoType && !item.infoTypeLocked) {
+                                                        onUpdate(item.id, { infoTypeLocked: true });
+                                                    }
+                                                    setShowInfoModal(false);
+                                                }}
+                                                className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <X size={15} />
+                                            </button>
+                                        </div>
+
+                                        {/* Entries */}
+                                        <div className="flex flex-col gap-0 overflow-y-auto max-h-[55vh] p-2" onMouseDown={(e) => e.stopPropagation()}>
+                                            {(item.infoEntries ?? []).length === 0 && (
+                                                <p className="text-center text-xs text-white/20 py-6">No fields yet. Add one below.</p>
+                                            )}
+                                            {(item.infoEntries ?? []).map((entry, idx) => (
+                                                <div key={entry.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl group/row ${idx % 2 === 0 ? 'bg-white/3' : ''}`}>
+                                                    {/* Key */}
+                                                    <div className="w-36 shrink-0 flex items-center gap-1">
+                                                        {editingKeyId === entry.id ? (
+                                                            <input
+                                                                className="flex-1 bg-white/10 rounded-lg px-2 py-1 text-xs font-semibold text-white/90 outline-none"
+                                                                value={editingKeyText}
+                                                                autoFocus
+                                                                onChange={(e) => setEditingKeyText(e.target.value)}
+                                                                onBlur={() => {
+                                                                    const updated = (item.infoEntries ?? []).map((en) =>
+                                                                        en.id === entry.id ? { ...en, key: editingKeyText.trim() || en.key } : en
+                                                                    );
+                                                                    onUpdate(item.id, { infoEntries: updated });
+                                                                    setEditingKeyId(null);
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' || e.key === 'Escape') {
+                                                                        const updated = (item.infoEntries ?? []).map((en) =>
+                                                                            en.id === entry.id ? { ...en, key: editingKeyText.trim() || en.key } : en
+                                                                        );
+                                                                        onUpdate(item.id, { infoEntries: updated });
+                                                                        setEditingKeyId(null);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <>
+                                                                <span className="flex-1 text-xs font-semibold text-white/55 truncate">{entry.key}</span>
+                                                                {!readOnly && (
+                                                                    <button
+                                                                        onClick={() => { setEditingKeyId(entry.id); setEditingKeyText(entry.key); }}
+                                                                        className="opacity-0 group-hover/row:opacity-100 p-0.5 rounded hover:bg-white/10 transition-all"
+                                                                        title="Edit key"
+                                                                    >
+                                                                        <Edit3 size={11} className="text-white/40 hover:text-teal-400" />
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <div className="w-px h-4 bg-white/10 shrink-0" />
+                                                    {/* Value */}
+                                                    <input
+                                                        className="flex-1 bg-transparent text-xs text-white/85 outline-none placeholder-white/20 focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
+                                                        value={entry.value}
+                                                        placeholder="—"
+                                                        readOnly={readOnly}
+                                                        onChange={(e) => {
+                                                            const updated = (item.infoEntries ?? []).map((en) =>
+                                                                en.id === entry.id ? { ...en, value: e.target.value } : en
+                                                            );
+                                                            onUpdate(item.id, { infoEntries: updated });
+                                                        }}
+                                                    />
+                                                    {/* Delete row */}
+                                                    {!readOnly && (
+                                                        <button
+                                                            onClick={() => {
+                                                                onUpdate(item.id, { infoEntries: (item.infoEntries ?? []).filter((en) => en.id !== entry.id) });
+                                                            }}
+                                                            className="opacity-0 group-hover/row:opacity-100 p-0.5 rounded hover:bg-red-500/20 transition-all shrink-0"
+                                                            title="Remove field"
+                                                        >
+                                                            <X size={11} className="text-white/30 hover:text-red-400" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Footer: Add field + Save */}
+                                        {!readOnly && (
+                                            <div className="px-3 py-2.5 border-t border-white/8 shrink-0 flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const newEntry: InfoEntry = { id: Date.now().toString(), key: `Field ${(item.infoEntries ?? []).length + 1}`, value: '' };
+                                                        const updates: Partial<ICanvasItem> = { infoEntries: [...(item.infoEntries ?? []), newEntry] };
+                                                        // Adding a field to a non-freeform type degrades to Freeform
+                                                        if (item.infoType && item.infoType !== 'freeform') {
+                                                            updates.infoType = 'freeform';
+                                                        }
+                                                        onUpdate(item.id, updates);
+                                                    }}
+                                                    className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white/40 hover:text-teal-400 hover:bg-teal-500/10 border border-dashed border-white/10 hover:border-teal-500/30 transition-colors"
+                                                >
+                                                    <Plus size={13} />
+                                                    Add field
+                                                    {item.infoType && item.infoType !== 'freeform' && (
+                                                        <span className="ml-auto text-[9px] text-white/20">becomes Freeform</span>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (item.infoType && !item.infoTypeLocked) {
+                                                            onUpdate(item.id, { infoTypeLocked: true });
+                                                        }
+                                                        setShowInfoModal(false);
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 border border-teal-500/30 transition-colors"
+                                                >
+                                                    <Check size={13} />
+                                                    Save
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()
+                        )}
+                    </div>
+                </div>,
+                document.body
             )}
         </motion.div>
     );

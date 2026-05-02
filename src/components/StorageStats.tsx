@@ -1,13 +1,46 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { X, HardDrive, Database, Info, Activity } from 'lucide-react';
+import { X, HardDrive, Database, Info, Activity, Wallet } from 'lucide-react';
 import { useStorageMonitor } from '@/hooks/useStorageMonitor';
 import { STORAGE_LIMIT_BYTES, STORAGE_WARN_THRESHOLD } from '@/config/storageConfig';
+import type { CanvasState, WalletAccount, FinancialEntry } from '@/types/canvas';
 
 interface StorageStatsProps {
     onClose: () => void;
     onClearCanvas: () => void;
+}
+
+interface WalletSummary {
+    wallet: WalletAccount;
+    income: number;
+    expense: number;
+    investment: number;
+    redemption: number;
+    inflow: number;
+    outflow: number;
+    [key: string]: number | WalletAccount;
+}
+
+const INFLOW_TYPES = new Set(['income', 'inflow', 'redemption']);
+const OUTFLOW_TYPES = new Set(['expense', 'outflow', 'investment']);
+
+function buildWalletSummaries(state: CanvasState): WalletSummary[] {
+    const map = new Map<string, WalletSummary>();
+    for (const w of state.wallets ?? []) {
+        map.set(w.id, { wallet: w, income: 0, expense: 0, investment: 0, redemption: 0, inflow: 0, outflow: 0 });
+    }
+
+    const allItems = [...(state.items ?? []), ...(state.inbox ?? []), ...(state.archive ?? [])];
+    for (const item of allItems) {
+        for (const fe of (item.financials ?? []) as FinancialEntry[]) {
+            const summary = fe.wallet ? map.get(fe.wallet) : undefined;
+            if (!summary) continue;
+            (summary as Record<string, number>)[fe.type] = ((summary as Record<string, number>)[fe.type] ?? 0) + fe.amount;
+        }
+    }
+
+    return [...map.values()];
 }
 
 export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanvas }) => {
@@ -16,11 +49,16 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
     // Re-fetch when the modal is opened so data is always current
     useEffect(() => { refresh(); }, [refresh]);
 
-    // Item count from localStorage canvas data
+    // Item count and wallet summaries from localStorage canvas data
     let itemCount = 0;
+    let walletSummaries: WalletSummary[] = [];
     try {
         const raw = localStorage.getItem('black-board-data');
-        if (raw) itemCount = JSON.parse(raw)?.items?.length ?? 0;
+        if (raw) {
+            const state: CanvasState = JSON.parse(raw);
+            itemCount = state?.items?.length ?? 0;
+            walletSummaries = buildWalletSummaries(state);
+        }
     } catch { /* ignore */ }
 
     const formatSize = (bytes: number) => {
@@ -115,6 +153,42 @@ export const StorageStats: React.FC<StorageStatsProps> = ({ onClose, onClearCanv
                             </div>
                         </div>
                     </div>
+
+                    {/* Wallet Aggregates */}
+                    {walletSummaries.length > 0 && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-white/40">
+                                <Wallet size={14} />
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Wallet Balances</span>
+                            </div>
+                            <div className="space-y-2">
+                                {walletSummaries.map(({ wallet, income, expense, investment, redemption, inflow, outflow }) => {
+                                    const totalIn = income + inflow + redemption;
+                                    const totalOut = expense + outflow + investment;
+                                    const net = totalIn - totalOut;
+                                    const fmt = (n: number) =>
+                                        n.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
+                                    return (
+                                        <div key={wallet.id} className="p-3 rounded-xl bg-white/5 border border-white/5">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div>
+                                                    <span className="text-sm font-semibold text-white">{wallet.name}</span>
+                                                    <span className="ml-2 text-[10px] text-white/30 uppercase tracking-wider">{wallet.accountType}</span>
+                                                </div>
+                                                <span className={`text-sm font-bold font-display ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                    {fmt(net)}
+                                                </span>
+                                            </div>
+                                            <div className="flex gap-3 text-[10px] text-white/40">
+                                                <span className="text-emerald-400/70">↑ {fmt(totalIn)}</span>
+                                                <span className="text-red-400/70">↓ {fmt(totalOut)}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Info / Warning Box */}
                     {isWarning ? (

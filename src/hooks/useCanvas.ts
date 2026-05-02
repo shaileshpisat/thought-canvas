@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CanvasItem, CanvasState, CanvasHistoryEntry, WalletAccount } from '../types/canvas';
+import { CanvasItem, CanvasState, CanvasHistoryEntry, WalletAccount, InfoCardType } from '../types/canvas';
+import { DEFAULT_INFO_CARD_TYPES } from '@/utils/infoCardTypes';
 import {
   isBase64DataUrl,
   isIdbSentinel,
@@ -39,6 +40,7 @@ const initialState: CanvasState = {
     { id: 'icici',       name: 'ICICI',        accountType: 'Savings' },
     { id: 'cash',        name: 'Cash',         accountType: 'Debit Card' },
   ] as WalletAccount[],
+  infoCardTypes: DEFAULT_INFO_CARD_TYPES,
 };
 
 // Traverse nested canvas items to get items at a given path
@@ -101,6 +103,9 @@ export const useCanvas = () => {
           }
           if (!Array.isArray(parsed.wallets)) {
             parsed.wallets = initialState.wallets;
+          }
+          if (!Array.isArray(parsed.infoCardTypes)) {
+            parsed.infoCardTypes = DEFAULT_INFO_CARD_TYPES;
           }
           setState(parsed);
         } catch (e) {
@@ -462,6 +467,10 @@ export const useCanvas = () => {
     setState(prev => ({ ...prev, wallets }));
   }, []);
 
+  const updateInfoCardTypes = useCallback((types: InfoCardType[]) => {
+    setState(prev => ({ ...prev, infoCardTypes: types }));
+  }, []);
+
   const renameTagGlobally = useCallback((oldTag: string, newTag: string) => {
     const renameInItems = (items: CanvasItem[]): CanvasItem[] =>
       items.map(item => ({
@@ -515,6 +524,7 @@ export const useCanvas = () => {
     updateArchiveItem,
     moveFromArchiveToCanvas,
     updateWallets,
+    updateInfoCardTypes,
     renameTagGlobally,
   };
 };

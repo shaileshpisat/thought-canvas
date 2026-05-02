@@ -9,6 +9,29 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.7.0
+
+### New Feature
+- **Info Card Types** — Info Cards now have a type system. When double-clicking a new Info Card, a type picker appears with built-in templates (Contact, Basic Contact, Product, Note) and a Freeform option. Selecting a type pre-populates the fields from its template. Adding a field beyond the template auto-degrades the type to Freeform. The type is locked (can't be changed) after saving.
+- **Info Card Types in Settings** — new "Info Card Types" panel in Settings lets you edit built-in type field lists and create custom types with any fields.
+- **Info Card canvas display** — the canvas icon now shows the resolved type name and the value of the first field, replacing the generic icon.
+
+---
+
+## v2.6.1
+
+### Enhancement
+- **Stats popup** — Wallet Balances section now appears in the Storage Statistics modal, showing each wallet's total inflows, total outflows, and net balance.
+
+---
+
+## v2.6.0
+
+### New Feature
+- **Info Card** — new canvas item type that appears as a compact teal icon on the board. Double-clicking opens a form where key-value pairs are stored. Keys can be renamed via an inline edit button; values are freely editable input fields. New fields can be added from the modal and individual fields can be removed.
+
+---
+
 ## v2.5.0
 
 ### UI

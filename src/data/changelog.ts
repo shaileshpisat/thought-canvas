@@ -6,6 +6,41 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.7.0',
+    sections: [
+      {
+        heading: 'New Feature',
+        changes: [
+          'Info Card Types — type picker on first open lets you choose a template (Contact, Basic Contact, Product, Note) or Freeform. Selecting a template pre-populates fields. Adding a field beyond the template auto-degrades to Freeform. Type locks on save.',
+          'Info Card Types in Settings — edit built-in type field lists or create custom types.',
+          'Info Card canvas icon now shows the type name and first-field value instead of a generic icon.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.6.1',
+    sections: [
+      {
+        heading: 'Enhancement',
+        changes: [
+          'Stats popup — Wallet Balances section now shows each wallet\'s total inflows, total outflows, and net balance.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.6.0',
+    sections: [
+      {
+        heading: 'New Feature',
+        changes: [
+          'Info Card — new item type that shows as a compact teal icon on the board. Double-click opens a key-value form: keys are editable via an edit button, values are freely editable inputs. Add or remove fields from the modal.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.5.0',
     sections: [
       {

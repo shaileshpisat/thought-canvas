@@ -1,4 +1,4 @@
-export type ItemType = 'text' | 'image' | 'link' | 'canvas';
+export type ItemType = 'text' | 'image' | 'link' | 'canvas' | 'info';
 
 export type Priority = 'very-high' | 'high' | 'medium' | 'low' | 'very-low';
 
@@ -53,6 +53,19 @@ export interface RecurringRule {
   endDate?: string;        // YYYY-MM-DD, used when endType='date'
 }
 
+export interface InfoEntry {
+  id: string;
+  key: string;
+  value: string;
+}
+
+export interface InfoCardType {
+  id: string;
+  name: string;
+  fields: string[];   // ordered list of field names (keys)
+  builtin?: boolean;  // true = can edit fields but cannot delete the type
+}
+
 export interface CanvasItem {
   id: string;
   createdAt?: number;   // unix ms timestamp — set once on creation
@@ -77,6 +90,9 @@ export interface CanvasItem {
   history?: CanvasHistoryEntry[];
   financials?: FinancialEntry[];
   children?: CanvasItem[]; // only for type 'canvas'
+  infoEntries?: InfoEntry[]; // only for type 'info'
+  infoType?: string;        // id of InfoCardType, or 'freeform', or undefined (not yet set)
+  infoTypeLocked?: boolean; // once true, type cannot be changed
   caption?: string;
   metadata?: {
     title?: string;
@@ -96,6 +112,7 @@ export interface CanvasState {
   backgroundColor: string;
   zoom: number;
   wallets: WalletAccount[];
+  infoCardTypes: InfoCardType[];
 }
 
 export interface RecycleBinItem extends CanvasItem {
