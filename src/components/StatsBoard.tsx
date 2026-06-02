@@ -5,7 +5,7 @@ import {
     Type, Image as ImageIcon, Layers, Link as LinkIcon,
     Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet, Activity,
 } from 'lucide-react';
-import { CanvasItem, WalletAccount, FinancialEntry, CanvasAction } from '@/types/canvas';
+import { CanvasItem, WalletAccount, FinancialEntry, CanvasAction, CanvasHistoryEntry } from '@/types/canvas';
 import { flattenItems, recursOnDate, todayDateStr } from '@/utils/dateUtils';
 
 interface BlockRow {
@@ -111,9 +111,10 @@ interface Props {
     onNavigate: (path: string[], itemId?: string) => void;
     onClose: () => void;
     fullScreen?: boolean;
+    extraActivityItems?: CanvasItem[];
 }
 
-export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose, fullScreen }) => {
+export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose, fullScreen, extraActivityItems = [] }) => {
     useEffect(() => {
         if (fullScreen) return; // Canvas handles Escape for full-screen view
         const handler = (e: KeyboardEvent) => {
@@ -156,6 +157,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
     const fmt = (n: number) =>
         n.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 
+
     const todayBlocks = useMemo(
         () => rows.filter(r => r.item.date === today && !r.item.recurring),
         [rows, today],
@@ -171,26 +173,35 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
         [rows],
     );
 
-    interface ActivityEntry extends CanvasAction {
+    interface ActivityEntry {
+        id: string;
+        label: string;
+        timestamp: number;
+        duration: number;
+        kind: 'action' | CanvasHistoryEntry['type'];
         itemLabel: string;
         itemPath: string[];
         itemId: string;
     }
 
+    function collectActivity(item: CanvasItem, itemPath: string[]): ActivityEntry[] {
+        const label = getSnippet(item) || 'Untitled';
+        const out: ActivityEntry[] = [];
+        for (const a of item.actions ?? []) {
+            out.push({ id: a.id, label: a.label, timestamp: a.timestamp, duration: a.duration, kind: 'action', itemLabel: label, itemPath, itemId: item.id });
+        }
+        for (const h of item.history ?? []) {
+            out.push({ id: h.id, label: h.action, timestamp: h.timestamp, duration: 0, kind: h.type, itemLabel: label, itemPath, itemId: item.id });
+        }
+        return out;
+    }
+
     const allActivity = useMemo<ActivityEntry[]>(() => {
         const entries: ActivityEntry[] = [];
-        for (const row of rows) {
-            for (const action of row.item.actions ?? []) {
-                entries.push({
-                    ...action,
-                    itemLabel: getSnippet(row.item) || 'Untitled',
-                    itemPath: row.path,
-                    itemId: row.item.id,
-                });
-            }
-        }
+        for (const row of rows) entries.push(...collectActivity(row.item, row.path));
+        for (const item of extraActivityItems) entries.push(...collectActivity(item, []));
         return entries.sort((a, b) => b.timestamp - a.timestamp);
-    }, [rows]);
+    }, [rows, extraActivityItems]);
 
     const tagFontSize = (count: number) => {
         if (maxTagCount <= 1) return 14;
@@ -278,36 +289,48 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                         </div>
                         {allActivity.length === 0 ? (
                             <div className="text-[12px] text-white/25 italic px-2 py-2">No activity logged yet.</div>
-                        ) : (
-                            <div className="rounded-lg border border-white/5 bg-white/[0.02] divide-y divide-white/5 overflow-hidden">
-                                {allActivity.map(entry => (
-                                    <button
-                                        key={entry.id}
-                                        onClick={() => { onNavigate(entry.itemPath, entry.itemId); onClose(); }}
-                                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-white/5 transition-colors"
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <div className="text-[13px] text-white/80 truncate">{entry.label}</div>
-                                            <div className="text-[10px] text-white/35 truncate">{entry.itemLabel}</div>
-                                        </div>
-                                        <div className="shrink-0 text-right">
-                                            {entry.duration > 0 && (
-                                                <div className="text-[10px] font-mono text-violet-400/70">
-                                                    {entry.duration >= 3600
+                        ) : (() => {
+                            const groups = new Map<string, typeof allActivity>();
+                            for (const entry of allActivity) {
+                                const key = new Date(entry.timestamp).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                                if (!groups.has(key)) groups.set(key, []);
+                                groups.get(key)!.push(entry);
+                            }
+                            return (
+                                <div className="space-y-3">
+                                    {[...groups.entries()].map(([dateLabel, entries]) => (
+                                        <div key={dateLabel}>
+                                            <div className="text-[9px] uppercase tracking-widest font-bold text-white/20 mb-1 px-1">{dateLabel}</div>
+                                            <div className="rounded-lg border border-white/5 bg-white/[0.02] divide-y divide-white/5 overflow-hidden">
+                                                {entries.map(entry => {
+                                                    const durStr = entry.duration >= 3600
                                                         ? `${Math.floor(entry.duration / 3600)}h ${Math.floor((entry.duration % 3600) / 60)}m`
                                                         : entry.duration >= 60
                                                             ? `${Math.floor(entry.duration / 60)}m ${entry.duration % 60}s`
-                                                            : `${entry.duration}s`}
-                                                </div>
-                                            )}
-                                            <div className="text-[9px] text-white/25">
-                                                {new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                                            : entry.duration > 0 ? `${entry.duration}s` : '';
+                                                    const timeStr = new Date(entry.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                                                    return (
+                                                        <button
+                                                            key={entry.id}
+                                                            onClick={() => { onNavigate(entry.itemPath, entry.itemId); onClose(); }}
+                                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-white/5 transition-colors"
+                                                        >
+                                                            <span className="text-[10px] text-white/25 font-mono shrink-0 w-14">{timeStr}</span>
+                                                            <span className={`text-[8px] uppercase font-bold tracking-wider shrink-0 px-1.5 py-0.5 rounded-full border ${entry.kind === 'action' ? 'text-violet-400/70 border-violet-500/20 bg-violet-500/10' : 'text-white/30 border-white/10 bg-white/5'}`}>
+                                                                {entry.kind}
+                                                            </span>
+                                                            <span className="text-[13px] text-white/80 truncate flex-1">{entry.label}</span>
+                                                            <span className="text-[11px] text-white/35 truncate max-w-[140px] shrink-0">{entry.itemLabel}</span>
+                                                            {durStr && <span className="text-[10px] font-mono text-violet-400/70 shrink-0">{durStr}</span>}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            );
+                        })()}
                     </section>
                 </div>
 

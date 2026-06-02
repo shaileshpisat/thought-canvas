@@ -9,6 +9,15 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.9.3
+
+### History
+- Date changes now record both old and new values in the audit history (e.g. "Changed date: 2025-06-01 → 2025-06-10").
+- Removing a date now shows the previous date in the history entry.
+- Recurring rule changes (enable, disable, modify) are now captured in the audit history with old and new values.
+
+---
+
 ## v2.9.2
 
 ### UI

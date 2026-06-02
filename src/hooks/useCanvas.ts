@@ -183,8 +183,29 @@ export const useCanvas = () => {
                 if (Object.hasOwn(updates, 'date') && updates.date !== item.date) {
                   if (updates.date && !item.date) pushHistory('date', `Added date: ${updates.date}`);
                   else if (!updates.date && item.date)
-                    pushHistory('date', `Removed date (${item.date})`);
-                  else if (updates.date) pushHistory('date', `Changed date to: ${updates.date}`);
+                    pushHistory('date', `Removed date (was: ${item.date})`);
+                  else if (updates.date) pushHistory('date', `Changed date: ${item.date} → ${updates.date}`);
+                }
+
+                // Recurring
+                if (Object.hasOwn(updates, 'recurring')) {
+                  const oldR = item.recurring;
+                  const newR = updates.recurring;
+                  const rLabel = (r: import('@/types/canvas').RecurringRule | undefined) => {
+                    if (!r) return 'None';
+                    const freqMap: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+                    let s = r.interval > 1 ? `Every ${r.interval} ${r.freq}` : freqMap[r.freq] ?? r.freq;
+                    if (r.freq === 'weekly' && r.days && r.days.length > 0) {
+                      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                      s += ` (${r.days.map((d) => dayNames[d]).join(', ')})`;
+                    }
+                    if (r.endType === 'count' && r.endCount) s += `, ${r.endCount}×`;
+                    else if (r.endType === 'date' && r.endDate) s += `, until ${r.endDate}`;
+                    return s;
+                  };
+                  if (!oldR && newR) pushHistory('date', `Recurring enabled: ${rLabel(newR)}`);
+                  else if (oldR && !newR) pushHistory('date', `Recurring removed (was: ${rLabel(oldR)})`);
+                  else if (oldR && newR) pushHistory('date', `Recurring changed: ${rLabel(oldR)} → ${rLabel(newR)}`);
                 }
 
                 // Geometry (Move/Resize)

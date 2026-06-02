@@ -784,6 +784,7 @@ export const Canvas: React.FC = () => {
                     fullScreen
                     allItems={state.items}
                     wallets={state.wallets ?? []}
+                    extraActivityItems={[...(state.inbox ?? []), ...(state.archive ?? [])]}
                     onNavigate={(path, itemId) => {
                         setNavigationPath(path);
                         setViewMode('canvas');
@@ -1031,7 +1032,7 @@ export const Canvas: React.FC = () => {
             )}
 
             {/* Running/Paused Timers Capsule — top-right */}
-            {viewMode === 'canvas' && (() => {
+            {(() => {
                 const active = flattenItems(state.items).filter((i) => i.timer?.isRunning || i.timer?.isPaused);
                 if (active.length === 0) return null;
                 const runningCount = active.filter((i) => i.timer?.isRunning).length;

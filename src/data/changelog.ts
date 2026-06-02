@@ -6,6 +6,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.9.3',
+    sections: [
+      {
+        heading: 'History',
+        changes: [
+          'Date changes now record both old and new values in the audit history.',
+          'Removing a date now shows the previous date in the history entry.',
+          'Recurring rule changes (enable, disable, modify) are now captured in audit history with old and new values.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.9.2',
     sections: [
       {
