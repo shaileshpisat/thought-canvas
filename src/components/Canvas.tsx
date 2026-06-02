@@ -33,7 +33,7 @@ import {
     IndianRupee,
     Trash2,
     Tag,
-    BarChart3,
+
     Info,
 } from 'lucide-react';
 import { StorageStats } from './StorageStats';
@@ -60,6 +60,9 @@ import type { CanvasItem as ICanvasItem } from '@/types/canvas';
 import { useRecycleBin } from '@/hooks/useRecycleBin';
 import { RecycleBin } from './RecycleBin';
 import { CanvasSitemapPanel } from './CanvasSitemapPanel';
+import { useBrokenImages } from '@/hooks/useBrokenImages';
+import { ImageRestoreBanner } from './ImageRestoreBanner';
+import { isDailyBackupDue, runDailyBackup } from '@/utils/imageBackup';
 
 function canvasTotalNet(items: CanvasItem[]): number {
     return flattenItems(items).reduce((sum, item) => {
@@ -114,7 +117,7 @@ export const Canvas: React.FC = () => {
     const [showSitemap, setShowSitemap] = React.useState(false);
     const [showStats, setShowStats] = React.useState(false);
     const [showSearch, setShowSearch] = React.useState(false);
-    const [showStatsBoard, setShowStatsBoard] = React.useState(false);
+
     const [showSettings, setShowSettings] = React.useState(false);
     const [showWalletMaster, setShowWalletMaster] = React.useState(false);
     const [showInfoTypeMaster, setShowInfoTypeMaster] = React.useState(false);
@@ -132,7 +135,7 @@ export const Canvas: React.FC = () => {
     });
     const [showDateCalendar, setShowDateCalendar] = React.useState(false);
     const [showChangelog, setShowChangelog] = React.useState(false);
-    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive'>('canvas');
+    const [viewMode, setViewMode] = React.useState<'canvas' | 'calendar' | 'plan' | 'inbox' | 'archive' | 'home'>('canvas');
     const [toolbarToast, setToolbarToast] = React.useState<string | null>(null);
     const [showAddMenu, setShowAddMenu] = React.useState(false);
     const addImageInputRef = React.useRef<HTMLInputElement>(null);
@@ -162,6 +165,7 @@ export const Canvas: React.FC = () => {
     const stateRef = useRef(state);
     const { refresh: refreshStorage } = useStorageMonitor();
     const { trackImageAdded } = useImageStorageTracker(refreshStorage);
+    const [bannerDismissed, setBannerDismissed] = useState(false);
 
     const canvasRef = useRef<HTMLDivElement>(null);
     const importRef = useRef<HTMLInputElement>(null);
@@ -282,6 +286,7 @@ export const Canvas: React.FC = () => {
 
     const currentItems = ageFilteredItems;
     currentItemsRef.current = rawCurrentItems;
+    const { brokenIds, checked: brokenChecked, recheck: recheckBroken } = useBrokenImages(currentItems);
 
     const breadcrumbLabels = getBreadcrumbLabels(state.items, navigationPath);
 
@@ -447,6 +452,13 @@ export const Canvas: React.FC = () => {
     useEffect(() => {
         localStorage.setItem('black-board-tags', JSON.stringify(tagMaster));
     }, [tagMaster]);
+
+    // Daily image backup — runs once per calendar day on first load
+    useEffect(() => {
+        if (isDailyBackupDue()) {
+            runDailyBackup();
+        }
+    }, []);
 
     const addToTagMaster = (tag: string) => {
         setTagMaster((prev) => (prev.includes(tag) ? prev : [...prev, tag]));
@@ -722,7 +734,7 @@ export const Canvas: React.FC = () => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 if (showSearchRef.current) return; // let SearchPanel handle its own Escape
-                if (viewModeRef.current === 'inbox' || viewModeRef.current === 'archive') {
+                if (viewModeRef.current === 'inbox' || viewModeRef.current === 'archive' || viewModeRef.current === 'home') {
                     setInboxResurfaceFilter(false);
                     setViewMode('canvas');
                     return;
@@ -767,7 +779,24 @@ export const Canvas: React.FC = () => {
     return (
         <div className="relative w-screen h-screen overflow-hidden bg-canvas-bg canvas-bg">
 
-            {viewMode === 'canvas' ? (
+            {viewMode === 'home' ? (
+                <StatsBoard
+                    fullScreen
+                    allItems={state.items}
+                    wallets={state.wallets ?? []}
+                    onNavigate={(path, itemId) => {
+                        setNavigationPath(path);
+                        setViewMode('canvas');
+                        if (itemId) {
+                            setTimeout(() => {
+                                setHighlightedItemId(itemId);
+                                setTimeout(() => setHighlightedItemId(null), 2000);
+                            }, 50);
+                        }
+                    }}
+                    onClose={() => setViewMode('canvas')}
+                />
+            ) : viewMode === 'canvas' ? (
 
                 <div
                     ref={canvasRef}
@@ -1142,10 +1171,22 @@ export const Canvas: React.FC = () => {
                 {/* View Switcher */}
                 <div className="flex items-center gap-1 p-1 bg-white/[0.03] rounded-xl mr-2">
                     <button
+                        onClick={() => setViewMode('home')}
+                        className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
+                            viewMode === 'home'
+                                ? 'bg-white/10 text-white shadow-inner'
+                                : 'text-white/30 hover:text-white/60'
+                        }`}
+                        title="Home"
+                    >
+                        <Home size={20} className={viewMode === 'home' ? 'text-sky-400' : ''} />
+                        <span className="text-[9px] uppercase font-black tracking-widest">Home</span>
+                    </button>
+                    <button
                         onClick={() => setViewMode('canvas')}
                         className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
-                            viewMode === 'canvas' 
-                                ? 'bg-white/10 text-white shadow-inner' 
+                            viewMode === 'canvas'
+                                ? 'bg-white/10 text-white shadow-inner'
                                 : 'text-white/30 hover:text-white/60'
                         }`}
                         title="Switch to Board View"
@@ -1599,15 +1640,6 @@ export const Canvas: React.FC = () => {
                     })()}
                 </div>
 
-                <button
-                    onClick={() => setShowStatsBoard(true)}
-                    className="flex flex-col items-center gap-1 p-3 hover:bg-white/5 rounded-xl transition-all group"
-                    title="Stats Board"
-                >
-                    <BarChart3 size={20} className="text-white/60 group-hover:text-violet-400 transition-colors" />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Stats</span>
-                </button>
-
                 <div className="w-[1px] h-10 bg-white/10 mx-1" />
 
                 <button
@@ -1694,6 +1726,14 @@ export const Canvas: React.FC = () => {
 
             <StorageWarningBanner onOpenStats={() => setShowStats(true)} />
             {showStats && <StorageStats onClose={() => setShowStats(false)} onClearCanvas={clearCanvas} />}
+
+            {brokenChecked && brokenIds.length > 0 && !bannerDismissed && (
+                <ImageRestoreBanner
+                    brokenIds={brokenIds}
+                    onRestored={() => { setBannerDismissed(true); recheckBroken(); }}
+                    onDismiss={() => setBannerDismissed(true)}
+                />
+            )}
 
             {/* Recycle Bin Modal */}
             {showRecycleBin && (
@@ -2085,20 +2125,6 @@ export const Canvas: React.FC = () => {
                 />
             )}
 
-            {showStatsBoard && (
-                <StatsBoard
-                    allItems={state.items}
-                    wallets={state.wallets ?? []}
-                    onNavigate={(path, itemId) => {
-                        setNavigationPath(path);
-                        if (itemId) {
-                            setHighlightedItemId(itemId);
-                            setTimeout(() => setHighlightedItemId(null), 2000);
-                        }
-                    }}
-                    onClose={() => setShowStatsBoard(false)}
-                />
-            )}
 
             {dateFilterDate && (
                 <DateFilterPanel

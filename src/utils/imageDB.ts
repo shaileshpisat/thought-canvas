@@ -64,6 +64,16 @@ export async function getImage(id: string): Promise<Blob | undefined> {
   });
 }
 
+export async function getAllImageIds(): Promise<string[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAllKeys();
+    req.onsuccess = () => resolve(req.result as string[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export async function deleteImage(id: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {

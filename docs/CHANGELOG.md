@@ -9,6 +9,37 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.9.2
+
+### UI
+- Home screen: Blocks Dated Today and Recurring Today now display as a 5-column card grid instead of a vertical list.
+- Home screen: New **Activity** section in the left column shows all logged actions across all items, sorted newest first, with duration and timestamp.
+
+---
+
+## v2.9.1
+
+### UI
+- **Home screen** redesigned with a two-column layout. Left column (wider): Pinned Notes, Pinned Canvases, Blocks Dated Today, Recurring Today. Right column: Totals, Tag Cloud, Wallet Balances. Title changed from "Stats Board" to "Home".
+
+---
+
+## v2.9.0
+
+### New Feature
+- **Daily image backup** — on first app load each day, all canvas images are automatically exported as a `black-board-images-YYYY-MM-DD.json` file to your downloads folder.
+- **Broken image detector** — on load, if any image items can't be found in the browser's local storage (e.g. after a browser data clear), an amber banner appears at the bottom of the canvas.
+- **Image restore** — upload a previously saved backup file from the banner to restore missing images in one step.
+
+---
+
+## v2.8.0
+
+### New
+- **Stats Board** is now a full-screen **Home** view. Removed the separate Stats toolbar button; access via the **Home** entry in the view switcher (left of Board).
+
+---
+
 ## v2.7.3
 
 ### Fix

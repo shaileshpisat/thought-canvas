@@ -2,10 +2,10 @@
 
 import React, { useEffect, useMemo } from 'react';
 import {
-    BarChart3, Type, Image as ImageIcon, Layers, Link as LinkIcon,
-    Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet,
+    Type, Image as ImageIcon, Layers, Link as LinkIcon,
+    Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet, Activity,
 } from 'lucide-react';
-import { CanvasItem, WalletAccount, FinancialEntry } from '@/types/canvas';
+import { CanvasItem, WalletAccount, FinancialEntry, CanvasAction } from '@/types/canvas';
 import { flattenItems, recursOnDate, todayDateStr } from '@/utils/dateUtils';
 
 interface BlockRow {
@@ -110,16 +110,18 @@ interface Props {
     wallets: WalletAccount[];
     onNavigate: (path: string[], itemId?: string) => void;
     onClose: () => void;
+    fullScreen?: boolean;
 }
 
-export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose }) => {
+export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose, fullScreen }) => {
     useEffect(() => {
+        if (fullScreen) return; // Canvas handles Escape for full-screen view
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
         };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
+    }, [onClose, fullScreen]);
 
     const today = todayDateStr();
     const allFlat = useMemo(() => flattenItems(allItems), [allItems]);
@@ -164,15 +166,31 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
         [rows, today],
     );
 
-    const pinnedCanvases = useMemo(
-        () => rows.filter(r => r.item.pinned && r.item.type === 'canvas'),
+    const pinnedItems = useMemo(
+        () => rows.filter(r => r.item.pinned),
         [rows],
     );
 
-    const pinnedNotes = useMemo(
-        () => rows.filter(r => r.item.pinned && r.item.type === 'text'),
-        [rows],
-    );
+    interface ActivityEntry extends CanvasAction {
+        itemLabel: string;
+        itemPath: string[];
+        itemId: string;
+    }
+
+    const allActivity = useMemo<ActivityEntry[]>(() => {
+        const entries: ActivityEntry[] = [];
+        for (const row of rows) {
+            for (const action of row.item.actions ?? []) {
+                entries.push({
+                    ...action,
+                    itemLabel: getSnippet(row.item) || 'Untitled',
+                    itemPath: row.path,
+                    itemId: row.item.id,
+                });
+            }
+        }
+        return entries.sort((a, b) => b.timestamp - a.timestamp);
+    }, [rows]);
 
     const tagFontSize = (count: number) => {
         if (maxTagCount <= 1) return 14;
@@ -190,34 +208,113 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
         onClose();
     };
 
-    return (
+    const inner = (
         <div
-            className="fixed inset-0 z-[200] flex items-start justify-center pt-[4vh]"
-            style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-            onClick={onClose}
+            className={fullScreen
+                ? 'absolute inset-x-0 bottom-0 flex flex-col overflow-hidden'
+                : 'w-full max-w-6xl mx-4 rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]'}
+            style={fullScreen ? { background: 'rgba(8, 12, 24, 0.98)', top: '88px' } : { background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)' }}
+            onClick={fullScreen ? undefined : e => e.stopPropagation()}
         >
-            <div
-                className="w-full max-w-6xl mx-4 rounded-2xl shadow-2xl shadow-black/80 ring-1 ring-white/10 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]"
-                style={{ background: 'rgba(8, 12, 24, 0.98)', backdropFilter: 'blur(24px)' }}
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10 shrink-0">
-                    <BarChart3 size={18} className="text-violet-400 shrink-0" />
-                    <h2 className="text-sm font-bold uppercase tracking-wider text-white/80">Stats Board</h2>
-                    <span className="text-[11px] text-white/30 ml-1">
-                        {new Date(today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-white/10 shrink-0">
+                <Home size={18} className="text-sky-400 shrink-0" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-white/80">Home</h2>
+                <span className="text-[11px] text-white/30 ml-1">
+                    {new Date(today + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
+                {!fullScreen && (
                     <button
                         onClick={onClose}
                         className="ml-auto text-white/30 hover:text-white/60 transition-colors text-[10px] font-mono border border-white/15 rounded px-1.5 py-0.5"
                     >
                         Esc
                     </button>
+                )}
+            </div>
+
+            {/* Two-column body */}
+            <div className="flex flex-1 overflow-hidden min-h-0">
+
+                {/* Left column — wider: pinned + today + recurring */}
+                <div className="flex-[3] overflow-y-auto px-6 py-5 space-y-6 border-r border-white/[0.06]">
+
+                    {/* Pinned Items */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Pin size={12} className="text-amber-300/80 fill-current" />
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Pinned Items</div>
+                            <div className="text-[10px] text-white/25">{pinnedItems.length}</div>
+                        </div>
+                        <HorizontalCardStrip rows={pinnedItems} onSelect={navigate} emptyText="No pinned items." scheme="amber" />
+                    </section>
+
+                    {/* Today's blocks */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Calendar size={12} className="text-green-400/80" />
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Blocks Dated Today</div>
+                            <div className="text-[10px] text-white/25">{todayBlocks.length}</div>
+                        </div>
+                        <CardGrid5 rows={todayBlocks} onSelect={navigate} emptyText="No blocks scheduled for today." scheme="emerald" />
+                    </section>
+
+                    {/* Recurring today */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Repeat size={12} className="text-emerald-400/80" />
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Recurring Today</div>
+                            <div className="text-[10px] text-white/25">{recurringToday.length}</div>
+                        </div>
+                        <CardGrid5 rows={recurringToday} onSelect={navigate} emptyText="No recurring blocks fall on today." scheme="emerald" showRecurringMark />
+                    </section>
+
+                    {/* Activity */}
+                    <section>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Activity size={12} className="text-violet-400/80" />
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Activity</div>
+                            <div className="text-[10px] text-white/25">{allActivity.length}</div>
+                        </div>
+                        {allActivity.length === 0 ? (
+                            <div className="text-[12px] text-white/25 italic px-2 py-2">No activity logged yet.</div>
+                        ) : (
+                            <div className="rounded-lg border border-white/5 bg-white/[0.02] divide-y divide-white/5 overflow-hidden">
+                                {allActivity.map(entry => (
+                                    <button
+                                        key={entry.id}
+                                        onClick={() => { onNavigate(entry.itemPath, entry.itemId); onClose(); }}
+                                        className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-[13px] text-white/80 truncate">{entry.label}</div>
+                                            <div className="text-[10px] text-white/35 truncate">{entry.itemLabel}</div>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                            {entry.duration > 0 && (
+                                                <div className="text-[10px] font-mono text-violet-400/70">
+                                                    {entry.duration >= 3600
+                                                        ? `${Math.floor(entry.duration / 3600)}h ${Math.floor((entry.duration % 3600) / 60)}m`
+                                                        : entry.duration >= 60
+                                                            ? `${Math.floor(entry.duration / 60)}m ${entry.duration % 60}s`
+                                                            : `${entry.duration}s`}
+                                                </div>
+                                            )}
+                                            <div className="text-[9px] text-white/25">
+                                                {new Date(entry.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </section>
                 </div>
 
-                <div className="overflow-y-auto px-5 py-5 space-y-6">
-                    {/* Totals row */}
+                {/* Right column — narrower: totals + tag cloud + wallets */}
+                <div className="flex-[2] overflow-y-auto px-5 py-5 space-y-6">
+
+                    {/* Totals */}
                     <section>
                         <div className="text-[10px] uppercase tracking-wider font-bold text-white/30 mb-2">Totals</div>
                         <div className="grid grid-cols-4 gap-2">
@@ -226,26 +323,6 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                             <StatTile icon={<ImageIcon size={16} className="text-emerald-400/80" />} label="Image" value={counts.image} accent="text-emerald-300" />
                             <StatTile icon={<LinkIcon size={16} className="text-amber-400/80" />} label="Link" value={counts.link} accent="text-amber-300" />
                         </div>
-                    </section>
-
-                    {/* Pinned Canvases */}
-                    <section>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Pin size={12} className="text-amber-300/80 fill-current" />
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Pinned Canvases</div>
-                            <div className="text-[10px] text-white/25">{pinnedCanvases.length}</div>
-                        </div>
-                        <HorizontalCardStrip rows={pinnedCanvases} onSelect={navigate} emptyText="No pinned canvases." scheme="amber" />
-                    </section>
-
-                    {/* Pinned Notes */}
-                    <section>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Pin size={12} className="text-amber-300/80 fill-current" />
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Pinned Notes</div>
-                            <div className="text-[10px] text-white/25">{pinnedNotes.length}</div>
-                        </div>
-                        <HorizontalCardStrip rows={pinnedNotes} onSelect={navigate} emptyText="No pinned notes." scheme="amber" />
                     </section>
 
                     {/* Tag cloud */}
@@ -274,27 +351,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                         )}
                     </section>
 
-                    {/* Today's blocks */}
-                    <section>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Calendar size={12} className="text-green-400/80" />
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Blocks Dated Today</div>
-                            <div className="text-[10px] text-white/25">{todayBlocks.length}</div>
-                        </div>
-                        <BlockList rows={todayBlocks} onSelect={navigate} emptyText="No blocks scheduled for today." />
-                    </section>
-
-                    {/* Recurring today — horizontal cards */}
-                    <section>
-                        <div className="flex items-center gap-2 mb-2">
-                            <Repeat size={12} className="text-emerald-400/80" />
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Recurring Today</div>
-                            <div className="text-[10px] text-white/25">{recurringToday.length}</div>
-                        </div>
-                        <HorizontalCardStrip rows={recurringToday} onSelect={navigate} emptyText="No recurring blocks fall on today." scheme="emerald" showRecurringMark />
-                    </section>
-
-                    {/* Wallet Aggregates */}
+                    {/* Wallet Balances */}
                     {walletSummaries.length > 0 && (
                         <section>
                             <div className="flex items-center gap-2 mb-2">
@@ -302,7 +359,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                                 <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Wallet Balances</div>
                                 <div className="text-[10px] text-white/25">{walletSummaries.length}</div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                            <div className="grid grid-cols-3 gap-2">
                                 {walletSummaries.map(({ wallet, totalIn, totalOut, net }) => (
                                     <div
                                         key={wallet.id}
@@ -330,6 +387,20 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                     )}
                 </div>
             </div>
+        </div>
+    );
+
+    if (fullScreen) {
+        return inner;
+    }
+
+    return (
+        <div
+            className="fixed inset-0 z-[200] flex items-start justify-center pt-[4vh]"
+            style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+            onClick={onClose}
+        >
+            {inner}
         </div>
     );
 };
@@ -409,6 +480,69 @@ function HorizontalCardStrip({
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+function CardGrid5({
+    rows,
+    onSelect,
+    emptyText,
+    scheme,
+    showRecurringMark,
+}: {
+    rows: BlockRow[];
+    onSelect: (row: BlockRow) => void;
+    emptyText: string;
+    scheme: StripScheme;
+    showRecurringMark?: boolean;
+}) {
+    if (rows.length === 0) {
+        return <div className="text-[12px] text-white/25 italic px-2 py-2">{emptyText}</div>;
+    }
+    const schemeCls = SCHEME_CLASSES[scheme];
+    return (
+        <div className="grid grid-cols-5 gap-2">
+            {rows.map(row => {
+                const snippet = getSnippet(row.item);
+                return (
+                    <button
+                        key={row.item.id}
+                        onClick={() => onSelect(row)}
+                        className={`rounded-xl border transition-all text-left px-3 py-2.5 flex flex-col gap-1.5 group ${schemeCls}`}
+                    >
+                        <div className="flex items-center gap-1.5">
+                            {showRecurringMark && <span className="text-emerald-400/90 text-[11px]">↻</span>}
+                            {TYPE_ICONS[row.item.type]}
+                            {row.item.time && (
+                                <span className="text-[10px] font-mono text-white/45">{row.item.time}</span>
+                            )}
+                        </div>
+                        <div className="text-[12px] text-white/85 leading-snug flex-1 overflow-hidden line-clamp-3">
+                            {snippet || <span className="italic text-white/30">Empty</span>}
+                        </div>
+                        {row.item.tags && row.item.tags.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                                {row.item.tags.slice(0, 2).map(t => (
+                                    <span key={t} className="px-1.5 py-0 rounded-full text-[9px] font-semibold border bg-white/5 text-white/40 border-white/10">
+                                        #{t}
+                                    </span>
+                                ))}
+                                {row.item.tags.length > 2 && (
+                                    <span className="text-[9px] text-white/25">+{row.item.tags.length - 2}</span>
+                                )}
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1 text-[9px] text-white/25">
+                            <Home size={8} className="shrink-0" />
+                            {row.pathLabels.length === 0
+                                ? <span>Root</span>
+                                : <span className="truncate">{row.pathLabels[row.pathLabels.length - 1]}</span>
+                            }
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }

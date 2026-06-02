@@ -6,6 +6,53 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.9.2',
+    sections: [
+      {
+        heading: 'UI',
+        changes: [
+          'Home screen: Blocks Dated Today and Recurring Today now display as a 5-column card grid.',
+          'Home screen: New Activity section shows all logged actions across all items, sorted newest first, with duration and timestamp.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.9.1',
+    sections: [
+      {
+        heading: 'UI',
+        changes: [
+          'Home screen redesigned with a two-column layout. Left column (wider): Pinned Notes, Pinned Canvases, Blocks Dated Today, Recurring Today. Right column: Totals, Tag Cloud, Wallet Balances. Title changed from "Stats Board" to "Home".',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.9.0',
+    sections: [
+      {
+        heading: 'New Feature',
+        changes: [
+          'Daily image backup — on first load each day, all canvas images are exported as a black-board-images-YYYY-MM-DD.json file to your downloads folder.',
+          "Broken image detector — if any images can't be found in local storage after a browser data clear, an amber banner appears at the bottom of the canvas.",
+          'Image restore — upload a previously saved backup file from the banner to restore missing images in one step.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.8.0',
+    sections: [
+      {
+        heading: 'New',
+        changes: [
+          'Stats Board is now a full-screen Home view. Removed the separate Stats toolbar button; access via the Home entry in the view switcher (left of Board).',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.7.3',
     sections: [
       {
