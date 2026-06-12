@@ -3,9 +3,9 @@
 import React, { useEffect, useMemo } from 'react';
 import {
     Type, Image as ImageIcon, Layers, Link as LinkIcon,
-    Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet, Activity,
+    Hash, Calendar, Repeat, Home, ChevronRight, Pin, Wallet, Activity, ClipboardList,
 } from 'lucide-react';
-import { CanvasItem, WalletAccount, FinancialEntry, CanvasAction, CanvasHistoryEntry } from '@/types/canvas';
+import { CanvasItem, InfoCardType, WalletAccount, FinancialEntry, CanvasAction, CanvasHistoryEntry } from '@/types/canvas';
 import { flattenItems, recursOnDate, todayDateStr } from '@/utils/dateUtils';
 
 interface BlockRow {
@@ -56,18 +56,20 @@ function stripMarkdown(md: string): string {
         .trim();
 }
 
-function getSnippet(item: CanvasItem): string {
+function getSnippet(item: CanvasItem, infoCardTypes?: InfoCardType[]): string {
     if (item.type === 'link') return item.metadata?.title || item.content;
     if (item.type === 'image') return item.caption || 'Image';
     if (item.type === 'canvas') return item.content || 'Untitled Canvas';
+    if (item.type === 'info') return infoCardTypes?.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card';
     return stripMarkdown(item.content || '');
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-    text:   <Type      size={13} className="text-sky-400/80"     />,
-    image:  <ImageIcon size={13} className="text-emerald-400/80" />,
-    link:   <LinkIcon  size={13} className="text-amber-400/80"   />,
-    canvas: <Layers    size={13} className="text-purple-400/80"  />,
+    text:   <Type           size={13} className="text-sky-400/80"     />,
+    image:  <ImageIcon      size={13} className="text-emerald-400/80" />,
+    link:   <LinkIcon       size={13} className="text-amber-400/80"   />,
+    canvas: <Layers         size={13} className="text-purple-400/80"  />,
+    info:   <ClipboardList  size={13} className="text-teal-400/80"    />,
 };
 
 interface WalletSummary {
@@ -107,6 +109,7 @@ function buildWalletSummaries(allFlat: CanvasItem[], wallets: WalletAccount[]): 
 
 interface Props {
     allItems: CanvasItem[];
+    infoCardTypes: InfoCardType[];
     wallets: WalletAccount[];
     onNavigate: (path: string[], itemId?: string) => void;
     onClose: () => void;
@@ -114,7 +117,7 @@ interface Props {
     extraActivityItems?: CanvasItem[];
 }
 
-export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onClose, fullScreen, extraActivityItems = [] }) => {
+export const StatsBoard: React.FC<Props> = ({ allItems, infoCardTypes, wallets, onNavigate, onClose, fullScreen, extraActivityItems = [] }) => {
     useEffect(() => {
         if (fullScreen) return; // Canvas handles Escape for full-screen view
         const handler = (e: KeyboardEvent) => {
@@ -129,14 +132,15 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
     const rows = useMemo(() => flattenWithPaths(allItems), [allItems]);
 
     const counts = useMemo(() => {
-        let canvas = 0, text = 0, image = 0, link = 0;
+        let canvas = 0, text = 0, image = 0, link = 0, info = 0;
         for (const it of allFlat) {
             if (it.type === 'canvas') canvas++;
             else if (it.type === 'text') text++;
             else if (it.type === 'image') image++;
             else if (it.type === 'link') link++;
+            else if (it.type === 'info') info++;
         }
-        return { canvas, text, image, link };
+        return { canvas, text, image, link, info };
     }, [allFlat]);
 
     const tagCounts = useMemo(() => {
@@ -185,7 +189,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
     }
 
     function collectActivity(item: CanvasItem, itemPath: string[]): ActivityEntry[] {
-        const label = getSnippet(item) || 'Untitled';
+        const label = getSnippet(item, infoCardTypes) || 'Untitled';
         const out: ActivityEntry[] = [];
         for (const a of item.actions ?? []) {
             out.push({ id: a.id, label: a.label, timestamp: a.timestamp, duration: a.duration, kind: 'action', itemLabel: label, itemPath, itemId: item.id });
@@ -257,7 +261,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                             <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Pinned Items</div>
                             <div className="text-[10px] text-white/25">{pinnedItems.length}</div>
                         </div>
-                        <HorizontalCardStrip rows={pinnedItems} onSelect={navigate} emptyText="No pinned items." scheme="amber" />
+                        <HorizontalCardStrip rows={pinnedItems} onSelect={navigate} emptyText="No pinned items." scheme="amber" infoCardTypes={infoCardTypes} />
                     </section>
 
                     {/* Today's blocks */}
@@ -267,7 +271,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                             <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Blocks Dated Today</div>
                             <div className="text-[10px] text-white/25">{todayBlocks.length}</div>
                         </div>
-                        <CardGrid5 rows={todayBlocks} onSelect={navigate} emptyText="No blocks scheduled for today." scheme="emerald" />
+                        <CardGrid5 rows={todayBlocks} onSelect={navigate} emptyText="No blocks scheduled for today." scheme="emerald" infoCardTypes={infoCardTypes} />
                     </section>
 
                     {/* Recurring today */}
@@ -277,7 +281,7 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                             <div className="text-[10px] uppercase tracking-wider font-bold text-white/30">Recurring Today</div>
                             <div className="text-[10px] text-white/25">{recurringToday.length}</div>
                         </div>
-                        <CardGrid5 rows={recurringToday} onSelect={navigate} emptyText="No recurring blocks fall on today." scheme="emerald" showRecurringMark />
+                        <CardGrid5 rows={recurringToday} onSelect={navigate} emptyText="No recurring blocks fall on today." scheme="emerald" showRecurringMark infoCardTypes={infoCardTypes} />
                     </section>
 
                     {/* Activity */}
@@ -340,11 +344,12 @@ export const StatsBoard: React.FC<Props> = ({ allItems, wallets, onNavigate, onC
                     {/* Totals */}
                     <section>
                         <div className="text-[10px] uppercase tracking-wider font-bold text-white/30 mb-2">Totals</div>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-5 gap-2">
                             <StatTile icon={<Layers size={16} className="text-purple-400/80" />} label="Canvases" value={counts.canvas} accent="text-purple-300" />
                             <StatTile icon={<Type size={16} className="text-sky-400/80" />} label="Text" value={counts.text} accent="text-sky-300" />
                             <StatTile icon={<ImageIcon size={16} className="text-emerald-400/80" />} label="Image" value={counts.image} accent="text-emerald-300" />
                             <StatTile icon={<LinkIcon size={16} className="text-amber-400/80" />} label="Link" value={counts.link} accent="text-amber-300" />
+                            <StatTile icon={<ClipboardList size={16} className="text-teal-400/80" />} label="Info" value={counts.info} accent="text-teal-300" />
                         </div>
                     </section>
 
@@ -441,12 +446,14 @@ function HorizontalCardStrip({
     emptyText,
     scheme,
     showRecurringMark,
+    infoCardTypes,
 }: {
     rows: BlockRow[];
     onSelect: (row: BlockRow) => void;
     emptyText: string;
     scheme: StripScheme;
     showRecurringMark?: boolean;
+    infoCardTypes?: InfoCardType[];
 }) {
     if (rows.length === 0) {
         return <div className="text-[12px] text-white/25 italic px-2 py-2">{emptyText}</div>;
@@ -456,7 +463,7 @@ function HorizontalCardStrip({
         <div className="-mx-1 px-1 overflow-x-auto overflow-y-hidden">
             <div className="flex gap-3 pb-2 min-w-max">
                 {rows.map(row => {
-                    const snippet = getSnippet(row.item);
+                    const snippet = getSnippet(row.item, infoCardTypes);
                     return (
                         <button
                             key={row.item.id}
@@ -474,9 +481,22 @@ function HorizontalCardStrip({
                                     {row.item.type}
                                 </span>
                             </div>
-                            <div className="text-[13px] text-white/85 leading-snug flex-1 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
-                                {snippet || <span className="italic text-white/30">Empty</span>}
-                            </div>
+                            {row.item.type === 'info' ? (
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="text-[13px] font-bold text-teal-400/90 leading-snug mb-0.5">
+                                        {infoCardTypes?.find(t => t.id === row.item.infoType)?.name || row.item.infoType || 'Info Card'}
+                                    </div>
+                                    {(row.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                        <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                            <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-[13px] text-white/85 leading-snug flex-1 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                    {snippet || <span className="italic text-white/30">Empty</span>}
+                                </div>
+                            )}
                             {row.item.tags && row.item.tags.length > 0 && (
                                 <div className="flex items-center gap-1 flex-wrap">
                                     {row.item.tags.slice(0, 3).map(t => (
@@ -513,12 +533,14 @@ function CardGrid5({
     emptyText,
     scheme,
     showRecurringMark,
+    infoCardTypes,
 }: {
     rows: BlockRow[];
     onSelect: (row: BlockRow) => void;
     emptyText: string;
     scheme: StripScheme;
     showRecurringMark?: boolean;
+    infoCardTypes?: InfoCardType[];
 }) {
     if (rows.length === 0) {
         return <div className="text-[12px] text-white/25 italic px-2 py-2">{emptyText}</div>;
@@ -527,7 +549,7 @@ function CardGrid5({
     return (
         <div className="grid grid-cols-5 gap-2">
             {rows.map(row => {
-                const snippet = getSnippet(row.item);
+                const snippet = getSnippet(row.item, infoCardTypes);
                 return (
                     <button
                         key={row.item.id}
@@ -541,9 +563,22 @@ function CardGrid5({
                                 <span className="text-[10px] font-mono text-white/45">{row.item.time}</span>
                             )}
                         </div>
-                        <div className="text-[12px] text-white/85 leading-snug flex-1 overflow-hidden line-clamp-3">
-                            {snippet || <span className="italic text-white/30">Empty</span>}
-                        </div>
+                        {row.item.type === 'info' ? (
+                            <div className="flex-1 overflow-hidden">
+                                <div className="text-[12px] font-bold text-teal-400/90 leading-snug mb-0.5">
+                                    {infoCardTypes?.find(t => t.id === row.item.infoType)?.name || row.item.infoType || 'Info Card'}
+                                </div>
+                                {(row.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                    <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                        <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-[12px] text-white/85 leading-snug flex-1 overflow-hidden line-clamp-3">
+                                {snippet || <span className="italic text-white/30">Empty</span>}
+                            </div>
+                        )}
                         {row.item.tags && row.item.tags.length > 0 && (
                             <div className="flex items-center gap-1 flex-wrap">
                                 {row.item.tags.slice(0, 2).map(t => (
@@ -587,11 +622,13 @@ function BlockList({
     onSelect,
     emptyText,
     showRecurringMark,
+    infoCardTypes,
 }: {
     rows: BlockRow[];
     onSelect: (row: BlockRow) => void;
     emptyText: string;
     showRecurringMark?: boolean;
+    infoCardTypes?: InfoCardType[];
 }) {
     if (rows.length === 0) {
         return <div className="text-[12px] text-white/25 italic px-2 py-2">{emptyText}</div>;
@@ -606,13 +643,30 @@ function BlockList({
                 >
                     <span className="mt-0.5 shrink-0">{TYPE_ICONS[row.item.type]}</span>
                     <div className="min-w-0 flex-1">
-                        <div className="text-[13px] text-white/80 truncate flex items-center gap-1.5">
-                            {showRecurringMark && <span className="text-emerald-400/80 text-[11px]">↻</span>}
-                            {getSnippet(row.item) || <span className="italic text-white/30">Empty</span>}
-                            {row.item.time && (
-                                <span className="ml-1 text-[10px] font-mono text-white/35">{row.item.time}</span>
-                            )}
-                        </div>
+                        {row.item.type === 'info' ? (
+                            <div className="flex items-center gap-1.5">
+                                {showRecurringMark && <span className="text-emerald-400/80 text-[11px]">↻</span>}
+                                <span className="text-[13px] font-bold text-teal-400/90 truncate">
+                                    {infoCardTypes?.find(t => t.id === row.item.infoType)?.name || row.item.infoType || 'Info Card'}
+                                </span>
+                                {(row.item.infoEntries ?? []).slice(0, 1).map(entry => (
+                                    <span key={entry.id} className="text-[11px] text-white/50 truncate ml-1">
+                                        <span className="text-white/30">{entry.key}: </span>{entry.value}
+                                    </span>
+                                ))}
+                                {row.item.time && (
+                                    <span className="ml-1 text-[10px] font-mono text-white/35">{row.item.time}</span>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-[13px] text-white/80 truncate flex items-center gap-1.5">
+                                {showRecurringMark && <span className="text-emerald-400/80 text-[11px]">↻</span>}
+                                {getSnippet(row.item, infoCardTypes) || <span className="italic text-white/30">Empty</span>}
+                                {row.item.time && (
+                                    <span className="ml-1 text-[10px] font-mono text-white/35">{row.item.time}</span>
+                                )}
+                            </div>
+                        )}
                         {row.item.tags && row.item.tags.length > 0 && (
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
                                 {row.item.tags.map(t => (

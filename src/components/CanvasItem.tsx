@@ -839,22 +839,26 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                         ? (infoCardTypes.find(t => t.id === item.infoType)?.name ?? item.infoType)
                         : null;
                 const firstValue = entries[0]?.value ?? '';
+                const secondValue = entries[1]?.value ?? '';
                 return (
                     <div
                         className="w-full h-full flex items-center justify-center cursor-pointer select-none"
                         onDoubleClick={(e) => { e.stopPropagation(); setShowInfoModal(true); }}
                     >
-                        <div className="flex flex-col items-center gap-1">
+                        <div className="flex flex-col items-center gap-0.5">
                             {resolvedTypeName ? (
                                 <span className="text-[9px] font-bold text-teal-400/80 text-center leading-tight max-w-[72px] truncate">{resolvedTypeName}</span>
                             ) : (
                                 <span className="text-[9px] text-white/30 italic">No type</span>
                             )}
                             {firstValue && (
-                                <span className="text-[8px] text-white/40 text-center max-w-[72px] truncate">{firstValue}</span>
+                                <span className="text-[8px] text-white/40 text-center max-w-[72px] truncate leading-tight">{firstValue}</span>
                             )}
-                            {entries.length > 0 && (
-                                <span className="text-[8px] text-teal-400/50">{entries.length} field{entries.length !== 1 ? 's' : ''}</span>
+                            {secondValue && (
+                                <span className="text-[8px] text-white/30 text-center max-w-[72px] truncate leading-tight">{secondValue}</span>
+                            )}
+                            {entries.length === 0 && (
+                                <span className="text-[8px] text-white/20 italic">No fields</span>
                             )}
                         </div>
                     </div>
@@ -1694,7 +1698,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
 
 
                 {/* Resize handle */}
-                {isHovered && item.type !== 'info' && (
+                {isHovered && (
                     <div
                         className="absolute bottom-0 right-0 w-5 h-5 cursor-nwse-resize z-50 flex items-end justify-end p-1"
                         onPointerDown={handleResizePointerDown}

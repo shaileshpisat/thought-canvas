@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ArrowLeft, ClipboardList, Clock, Tag, Flag, X } from 'lucide-react';
-import { CanvasItem, CanvasHistoryEntry, FinancialEntry } from '@/types/canvas';
+import { CanvasItem, CanvasHistoryEntry, FinancialEntry, InfoCardType } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
+  infoCardTypes: InfoCardType[];
   recurringDays: number;
   onClose: () => void;
   onNavigateToItem: (item: CanvasItem, path: string[]) => void;
@@ -49,7 +50,7 @@ function formatRupees(amount: number): string {
     return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(amount));
 }
 
-export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNavigateToItem }) => {
+export const PlanBoard: React.FC<Props> = ({ items, infoCardTypes, recurringDays, onClose, onNavigateToItem }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [now, setNow] = useState(new Date());
   const [activePopup, setActivePopup] = useState<string | null>(null);
@@ -411,8 +412,11 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                           >
                             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                             <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
-                              {item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}
-                              {label}
+                              {item.type === 'info' ? (
+                                infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'
+                              ) : (
+                                <>{item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}{label}</>
+                              )}
                             </span>
                             {item.time && (
                               <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
@@ -427,7 +431,20 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                           >
                             <div className="bg-[#0b101c] p-5 rounded-[20px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                               <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
-                              <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              {item.type === 'info' ? (
+                                <div className="mb-2">
+                                  <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                    {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                  </span>
+                                  {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                    <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                      <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              )}
                               {path.length > 0 && (
                                 <div className="text-[11px] text-sky-400/40 font-medium mb-3">
                                   in {canvasTitles.get(path[path.length - 1]) || 'Sub-canvas'}
@@ -587,8 +604,11 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                             >
                               <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                               <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
-                                {item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}
-                                {label}
+                                {item.type === 'info' ? (
+                                  infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'
+                                ) : (
+                                  <>{item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}{label}</>
+                                )}
                               </span>
                               <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
                                 {item.time} · {formatDuration(dur)}
@@ -601,7 +621,20 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                             >
                               <div className="bg-[#0b101c] p-5 rounded-[20px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                 <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
-                                <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                                {item.type === 'info' ? (
+                                  <div className="mb-2">
+                                    <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                      {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                    </span>
+                                    {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                      <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                        <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                                )}
                                 {path.length > 0 && (
                                   <div className="text-[11px] text-sky-400/40 font-medium mb-3">
                                     in {canvasTitles.get(path[path.length - 1]) || 'Sub-canvas'}
@@ -707,8 +740,11 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                           >
                             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
                             <span className={`text-[11px] font-bold leading-tight truncate pl-1 flex items-center gap-1 ${colors.text}`}>
-                              {item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}
-                              {label}
+                              {item.type === 'info' ? (
+                                infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'
+                              ) : (
+                                <>{item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}{label}</>
+                              )}
                             </span>
                             {item.time && (
                               <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
@@ -723,7 +759,20 @@ export const PlanBoard: React.FC<Props> = ({ items, recurringDays, onClose, onNa
                           >
                             <div className="bg-[#0b101c] p-5 rounded-[20px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                               <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
-                              <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              {item.type === 'info' ? (
+                                <div className="mb-2">
+                                  <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                    {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                  </span>
+                                  {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                    <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                      <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              )}
                               {path.length > 0 && (
                                 <div className="text-[11px] text-sky-400/40 font-medium mb-3">
                                   in {canvasTitles.get(path[path.length - 1]) || 'Sub-canvas'}

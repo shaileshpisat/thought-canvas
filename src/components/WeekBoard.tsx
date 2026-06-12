@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ArrowLeft, Calendar, Clock, Tag, Flag } from 'lucide-react';
-import { CanvasItem } from '@/types/canvas';
+import { CanvasItem, InfoCardType } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
+  infoCardTypes: InfoCardType[];
   onClose: () => void;
   onNavigateToItem: (item: CanvasItem, path: string[]) => void;
 }
@@ -42,7 +43,7 @@ const priorityColor = (p?: string) => (p && PRIORITY_CFG[p]) ? PRIORITY_CFG[p] :
 const pad = (n: number) => String(n).padStart(2, '0');
 const getDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-export const WeekBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem }) => {
+export const WeekBoard: React.FC<Props> = ({ items, infoCardTypes, onClose, onNavigateToItem }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activePopup, setActivePopup] = useState<string | null>(null);
 
@@ -196,22 +197,38 @@ export const WeekBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem })
                             className={`w-full rounded-lg border ${colors.badge} overflow-hidden flex flex-col px-2.5 py-1.5 text-left transition-all hover:brightness-125 active:scale-95 relative ${isPinned ? 'ring-1 ring-sky-400/50' : ''}`}
                           >
                             <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l ${colors.bar}`} />
-                            <span className={`text-[11px] font-bold leading-tight truncate pl-1 ${colors.text}`}>
-                              {item.recurring && <span className="text-emerald-400/80 mr-1 text-[10px]">↻</span>}
-                              {label}
-                            </span>
+                            {item.type === 'info' ? (
+                              <span className={`text-[11px] font-bold leading-tight truncate pl-1 ${colors.text}`}>
+                                {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                              </span>
+                            ) : (
+                              <span className={`text-[11px] font-bold leading-tight truncate pl-1 ${colors.text}`}>
+                                {item.recurring && <span className="text-emerald-400/80 mr-1 text-[10px]">↻</span>}
+                                {label}
+                              </span>
+                            )}
                             {item.time && (
                               <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight mt-0.5">
                                 {formatTime(item.time)}{item.duration ? ` · ${formatDur(item.duration)}` : ''}
                               </span>
                             )}
-                            {item.tags && item.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-0.5 mt-1 pl-1">
-                                {item.tags.slice(0, 2).map(t => (
-                                  <span key={t} className="px-1 py-px bg-white/5 rounded text-[9px] text-white/30">{t}</span>
-                                ))}
-                                {item.tags.length > 2 && <span className="text-[9px] text-white/20">+{item.tags.length - 2}</span>}
-                              </div>
+                            {item.type === 'info' ? (
+                              (item.infoEntries ?? []).slice(0, 2).length > 0 && (
+                                <div className="flex flex-col gap-0 mt-0.5 pl-1">
+                                  {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                    <span key={entry.id} className="text-[8px] text-white/30 truncate leading-tight">{entry.value}</span>
+                                  ))}
+                                </div>
+                              )
+                            ) : (
+                              item.tags && item.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-0.5 mt-1 pl-1">
+                                  {item.tags.slice(0, 2).map(t => (
+                                    <span key={t} className="px-1 py-px bg-white/5 rounded text-[9px] text-white/30">{t}</span>
+                                  ))}
+                                  {item.tags.length > 2 && <span className="text-[9px] text-white/20">+{item.tags.length - 2}</span>}
+                                </div>
+                              )
                             )}
                           </button>
                           {/* Popup */}
@@ -221,7 +238,20 @@ export const WeekBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem })
                           >
                             <div className="bg-[#0b101c] p-5 rounded-[20px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                               <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
-                              <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              {item.type === 'info' ? (
+                                <div className="mb-2">
+                                  <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                    {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                  </span>
+                                  {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                    <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                      <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <h4 className={`text-base font-black mb-1 leading-snug ${colors.text}`}>{label}</h4>
+                              )}
                               {path.length > 0 && (
                                 <div className="text-[11px] text-sky-400/40 font-medium mb-3">in sub-canvas</div>
                               )}

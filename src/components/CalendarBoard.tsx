@@ -2,10 +2,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ArrowLeft, Calendar as CalendarIcon, Clock, Tag, Flag, Layers, X, ListChecks } from 'lucide-react';
-import { CanvasItem, CanvasHistoryEntry, CanvasAction, FinancialEntry } from '@/types/canvas';
+import { CanvasItem, CanvasHistoryEntry, CanvasAction, FinancialEntry, InfoCardType } from '@/types/canvas';
 
 interface Props {
   items: CanvasItem[];
+  infoCardTypes: InfoCardType[];
   onClose: () => void;
   onNavigateToItem: (item: CanvasItem, path: string[]) => void;
 }
@@ -52,7 +53,7 @@ function formatRupees(amount: number): string {
     return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(amount));
 }
 
-export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToItem }) => {
+export const CalendarBoard: React.FC<Props> = ({ items, infoCardTypes, onClose, onNavigateToItem }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [now, setNow] = useState(new Date());
   const [pinnedPopup, setPinnedPopup] = useState<string | null>(null);
@@ -451,7 +452,20 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                 <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-64 ${isPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                   <div className="bg-[#0b101c] p-4 rounded-[20px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                     <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} ${colors.bar} opacity-60`} />
-                                    <p className={`text-sm font-black mb-1 leading-snug truncate ${colors.text}`}>{label}</p>
+                                    {item.type === 'info' ? (
+                                      <div className="mb-2">
+                                        <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                          {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                        </span>
+                                        {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                          <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                            <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className={`text-sm font-black mb-1 leading-snug truncate ${colors.text}`}>{label}</p>
+                                    )}
                                     {path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-2">in sub-canvas</div>}
                                     {item.time && <div className="flex items-center gap-1 text-[11px] font-mono text-white/50 mb-2"><Clock size={10} className="text-violet-400" />{formatTime(item.time)}</div>}
                                     {item.priority && <div className={`flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider mb-2 ${colors.text}`}><Flag size={9} />{item.priority.replace('-', ' ')}</div>}
@@ -478,9 +492,22 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                               <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-64 ${isPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                 <div className="bg-[#0b101c] p-4 rounded-[20px] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                   <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-green-500/40`} />
-                                  <p className="text-sm text-white/90 font-medium leading-relaxed mb-2.5 truncate">
-                                    {(() => { const l = item.content?.split('\n')[0] || 'Untitled'; return l.length > 80 ? l.slice(0, 80) + '...' : l; })()}
-                                  </p>
+                                  {item.type === 'info' ? (
+                                    <div className="mb-2.5">
+                                      <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                        {infoCardTypes.find(t => t.id === item.infoType)?.name || item.infoType || 'Info Card'}
+                                      </span>
+                                      {(item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                        <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                          <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-white/90 font-medium leading-relaxed mb-2.5 truncate">
+                                      {(() => { const l = item.content?.split('\n')[0] || 'Untitled'; return l.length > 80 ? l.slice(0, 80) + '...' : l; })()}
+                                    </p>
+                                  )}
                                   {path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3">in {calendarData.canvasTitles.get(path[path.length - 1]) || 'Sub-canvas'}</div>}
                                   {item.priority && (
                                     <div className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider pt-2 border-t border-white/5 ${item.priority === 'very-high' ? 'text-rose-400' : item.priority === 'high' ? 'text-orange-400' : item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`}>
@@ -532,7 +559,20 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                   <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isYellowPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                     <div className="bg-[#0b101c] p-5 rounded-[24px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                       <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-amber-500/40`} />
-                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      {item.item.type === 'info' ? (
+                                        <div className="mb-2">
+                                          <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                            {infoCardTypes.find(t => t.id === item.item.infoType)?.name || item.item.infoType || 'Info Card'}
+                                          </span>
+                                          {(item.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                            <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                              <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      )}
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
                                       <div className="flex flex-wrap items-center gap-3 mb-4 opacity-80">{item.item.date && <div className="flex items-center gap-1.5 text-sm font-bold text-white/30 uppercase tracking-wider"><CalendarIcon size={11} />{item.item.date}</div>}{item.item.priority && <div className={`flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`}><Flag size={11} />{item.item.priority.replace('-', ' ')}</div>}{item.item.tags && item.item.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{item.item.tags.slice(0, 4).map(t => <span key={t} className={`text-[11px] font-bold ${tagsInHistory.has(t) ? 'text-amber-400 bg-amber-400/10 px-1 rounded' : 'text-white/20'}`}>#{t}</span>)}{item.item.tags.length > 4 && <span className="text-[11px] text-white/10">+{item.item.tags.length - 4}</span>}</div>}</div>
                                       <div className="space-y-2.5">{[...slotEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{slotEntries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {slotEntries.length - 8} more entries</div>}</div>
@@ -572,13 +612,26 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                   <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isYellowPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                     <div className="bg-[#0b101c] p-5 rounded-[24px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                       <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-amber-500/40`} />
-                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight">
-                                        <Clock size={13} className="text-amber-400 shrink-0" />
-                                        <span>
-                                          {(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}
-                                          <span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span>
-                                        </span>
-                                      </h4>
+                                      {item.item.type === 'info' ? (
+                                        <div className="mb-2">
+                                          <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                            {infoCardTypes.find(t => t.id === item.item.infoType)?.name || item.item.infoType || 'Info Card'}
+                                          </span>
+                                          {(item.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                            <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                              <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight">
+                                          <Clock size={13} className="text-amber-400 shrink-0" />
+                                          <span>
+                                            {(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}
+                                            <span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span>
+                                          </span>
+                                        </h4>
+                                      )}
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
                                       <div className="flex flex-wrap items-center gap-3 mb-4 opacity-80">
                                         {item.item.date && <div className="flex items-center gap-1.5 text-sm font-bold text-white/30 uppercase tracking-wider"><CalendarIcon size={11} />{item.item.date}</div>}
@@ -632,7 +685,20 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
                                   <div onClick={e => e.stopPropagation()} className={`absolute top-0 transition-all duration-200 z-[1000] w-72 ${isYellowPinned ? 'opacity-100 pointer-events-auto' : 'opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto'} ${popupSide}`}>
                                     <div className="bg-[#0b101c] p-5 rounded-[24px] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden relative text-left">
                                       <div className={`absolute top-0 h-full w-1 ${idx >= 4 ? 'right-0' : 'left-0'} bg-amber-500/40`} />
-                                      <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      {item.item.type === 'info' ? (
+                                        <div className="mb-2">
+                                          <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                                            {infoCardTypes.find(t => t.id === item.item.infoType)?.name || item.item.infoType || 'Info Card'}
+                                          </span>
+                                          {(item.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                                            <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                                              <span className="text-white/40">{entry.key}: </span>{entry.value}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <h4 className="text-base font-black text-amber-300 mb-2 flex items-center gap-2 leading-tight"><Clock size={13} className="text-amber-400 shrink-0" /><span>{(() => { const text = item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 30 ? text.slice(0, 30) + '...' : text; })()}<span className="text-white/30 font-bold text-sm ml-1.5">— {slotEntries.length} {slotEntries.length === 1 ? 'action' : 'actions'}</span></span></h4>
+                                      )}
                                       {item.path.length > 0 && <div className="text-[11px] text-sky-400/40 font-medium mb-3.5">in {calendarData.canvasTitles.get(item.path[item.path.length - 1]) || 'Sub-canvas'}</div>}
                                       <div className="flex flex-wrap items-center gap-3 mb-4 opacity-80">{item.item.date && <div className="flex items-center gap-1.5 text-sm font-bold text-white/30 uppercase tracking-wider"><CalendarIcon size={11} />{item.item.date}</div>}{item.item.priority && <div className={`flex items-center gap-1.5 text-sm font-bold uppercase tracking-wider ${item.item.priority === 'very-high' ? 'text-rose-400' : item.item.priority === 'high' ? 'text-orange-400' : item.item.priority === 'medium' ? 'text-amber-400' : 'text-sky-400'}`}><Flag size={11} />{item.item.priority.replace('-', ' ')}</div>}{item.item.tags && item.item.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{item.item.tags.slice(0, 4).map(t => <span key={t} className={`text-[11px] font-bold ${tagsInHistory.has(t) ? 'text-amber-400 bg-amber-400/10 px-1 rounded' : 'text-white/20'}`}>#{t}</span>)}{item.item.tags.length > 4 && <span className="text-[11px] text-white/10">+{item.item.tags.length - 4}</span>}</div>}</div>
                                       <div className="space-y-2.5">{[...slotEntries].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8).map(entry => (<div key={entry.id} className="flex gap-3.5"><span className="text-sm font-mono text-amber-400 shrink-0 font-black">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span className="text-sm text-white/70 leading-relaxed italic">{entry.action}</span></div>))}{slotEntries.length > 8 && <div className="text-sm text-white/20 italic pt-1.5 border-t border-white/5">+ {slotEntries.length - 8} more entries</div>}</div>
@@ -668,13 +734,26 @@ export const CalendarBoard: React.FC<Props> = ({ items, onClose, onNavigateToIte
             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500/40" />
 
             <div className="p-5 border-b border-white/5 flex items-start justify-between gap-3">
-              <h4 className="text-base font-black text-amber-300 flex items-center gap-2 leading-tight min-w-0">
-                <Clock size={13} className="text-amber-400 shrink-0" />
-                <span className="min-w-0">
-                  {(() => { const text = fullHistoryModal.item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 28 ? text.slice(0, 28) + '...' : text; })()}
-                  <span className="text-white/30 font-bold text-sm ml-1.5">— {fullHistoryModal.entries.length} {fullHistoryModal.entries.length === 1 ? 'action' : 'actions'}</span>
-                </span>
-              </h4>
+              {fullHistoryModal.item.item.type === 'info' ? (
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold text-teal-400/80 mb-0.5 block leading-tight">
+                    {infoCardTypes.find(t => t.id === fullHistoryModal.item.item.infoType)?.name || fullHistoryModal.item.item.infoType || 'Info Card'}
+                  </span>
+                  {(fullHistoryModal.item.item.infoEntries ?? []).slice(0, 2).map(entry => (
+                    <div key={entry.id} className="text-[11px] text-white/70 leading-snug">
+                      <span className="text-white/40">{entry.key}: </span>{entry.value}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <h4 className="text-base font-black text-amber-300 flex items-center gap-2 leading-tight min-w-0">
+                  <Clock size={13} className="text-amber-400 shrink-0" />
+                  <span className="min-w-0">
+                    {(() => { const text = fullHistoryModal.item.item.content?.split('\n')[0] || 'Untitled'; return text.length > 28 ? text.slice(0, 28) + '...' : text; })()}
+                    <span className="text-white/30 font-bold text-sm ml-1.5">— {fullHistoryModal.entries.length} {fullHistoryModal.entries.length === 1 ? 'action' : 'actions'}</span>
+                  </span>
+                </h4>
+              )}
               <button onClick={() => setFullHistoryModal(null)} className="p-1 hover:bg-white/5 rounded-lg transition-colors text-white/20 hover:text-white shrink-0">
                 <X size={13} />
               </button>

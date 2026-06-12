@@ -6,6 +6,31 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.11.0',
+    sections: [
+      {
+        heading: 'Info Card',
+        changes: [
+          'Home Board (StatsBoard) now displays Info Card type name and first 2 fields in pinned items, today blocks, and recurring today blocks.',
+          'Plan Board\'s time-block section now shows Info Card details in popups and button labels.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.10.0',
+    sections: [
+      {
+        heading: 'Info Card',
+        changes: [
+          'Canvas preview now shows first 2 fields of an Info Card instead of just one.',
+          'Info Cards are now resizable like other item types.',
+          'Calendar, Plan Board, and Week Board popups now display the first 2 fields, type, and tags for Info Cards.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.9.3',
     sections: [
       {

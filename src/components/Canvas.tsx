@@ -783,6 +783,7 @@ export const Canvas: React.FC = () => {
                 <StatsBoard
                     fullScreen
                     allItems={state.items}
+                    infoCardTypes={state.infoCardTypes ?? []}
                     wallets={state.wallets ?? []}
                     extraActivityItems={[...(state.inbox ?? []), ...(state.archive ?? [])]}
                     onNavigate={(path, itemId) => {
@@ -884,6 +885,7 @@ export const Canvas: React.FC = () => {
             ) : viewMode === 'calendar' ? (
                 <CalendarBoard
                     items={state.items}
+                    infoCardTypes={state.infoCardTypes ?? []}
                     onClose={() => setViewMode('canvas')}
                     onNavigateToItem={(item, path) => {
                         setNavigationPath(path);
@@ -897,6 +899,7 @@ export const Canvas: React.FC = () => {
             ) : viewMode === 'plan' ? (
                 <PlanBoard
                     items={state.items}
+                    infoCardTypes={state.infoCardTypes ?? []}
                     recurringDays={recurringDays}
                     onClose={() => setViewMode('canvas')}
                     onNavigateToItem={(item, path) => {
