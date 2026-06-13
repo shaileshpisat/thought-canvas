@@ -610,9 +610,11 @@ export const PlanBoard: React.FC<Props> = ({ items, infoCardTypes, recurringDays
                                   <>{item.recurring && <span className="text-emerald-400/80 shrink-0 text-[10px]">↻</span>}{label}</>
                                 )}
                               </span>
-                              <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
-                                {item.time} · {formatDuration(dur)}
-                              </span>
+                              {heightPx > 20 && (
+                                <span className="text-[10px] text-white/30 font-mono pl-1 leading-tight tabular-nums">
+                                  {item.time} · {formatDuration(dur)}
+                                </span>
+                              )}
                             </button>
                             {/* Popup */}
                             <div

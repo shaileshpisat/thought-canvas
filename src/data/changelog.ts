@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.11.1',
+    sections: [
+      {
+        heading: 'Bug Fix',
+        changes: [
+          'Plan Board: short-duration time blocks (15 min) now display their title properly instead of being clipped.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.11.0',
     sections: [
       {

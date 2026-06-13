@@ -9,6 +9,13 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.11.1
+
+### Bug Fix
+- Plan Board: short-duration time blocks (15 min) now display their title properly instead of being clipped.
+
+---
+
 ## v2.11.0
 
 ### Info Card
