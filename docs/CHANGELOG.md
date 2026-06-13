@@ -9,6 +9,16 @@ Format: `vMAJOR.MINOR.PATCH`
 
 ---
 
+## v2.12.0
+
+### New Feature
+- Canvas is now limitless — drag the empty canvas area or middle-click to pan, Ctrl+scroll to zoom in/out.
+- Zoom controls in the bottom toolbar show the current zoom level with +/- buttons and a reset-to-100% click.
+- Grid background now moves and scales with the canvas for a true infinite-canvas feel.
+- Double-click to add text now correctly places the item at the canvas coordinate under the cursor, accounting for pan and zoom.
+
+---
+
 ## v2.11.1
 
 ### Bug Fix

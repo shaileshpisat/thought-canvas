@@ -183,24 +183,13 @@ export const findEmptyLocation = (
   let attempts = 0;
   const maxAttempts = 100;
   const step = 40;
-
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  const WRAP_WIDTH = 4000;
 
   while (hasCollision(x, y) && attempts < maxAttempts) {
-    // Basic search: move right, then wrap around and move down
     x += step;
-    if (x > screenWidth - width - PADDING) {
+    if (x > WRAP_WIDTH - width - PADDING) {
       x = START_X;
       y += step;
-    }
-    
-    if (y > screenHeight - height - PADDING) {
-       // If we exceed screen, just stack with a small offset
-       return { 
-         x: START_X + (items.length % 10) * 20, 
-         y: START_Y + (items.length % 10) * 20 
-       };
     }
     attempts++;
   }

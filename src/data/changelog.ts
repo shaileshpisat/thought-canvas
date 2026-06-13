@@ -6,6 +6,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.12.0',
+    sections: [
+      {
+        heading: 'New Feature',
+        changes: [
+          'Canvas is now limitless — drag the empty canvas area or middle-click to pan, Ctrl+scroll to zoom in/out.',
+          'Zoom controls in the bottom toolbar show the current zoom level with +/- buttons and a reset-to-100% click.',
+          'Grid background now moves and scales with the canvas for a true infinite-canvas feel.',
+          'Double-click to add text now correctly places the item at the canvas coordinate under the cursor, accounting for pan and zoom.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.11.1',
     sections: [
       {

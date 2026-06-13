@@ -19,6 +19,8 @@ import {
     ClipboardList,
     ChevronLeft,
     Search,
+    ZoomIn,
+    ZoomOut,
     Settings,
     LayoutGrid,
     Undo2,
@@ -127,6 +129,16 @@ export const Canvas: React.FC = () => {
     const [highlightedItemId, setHighlightedItemId] = React.useState<string | null>(null);
     const [blockNavItemId, setBlockNavItemId] = React.useState<string | null>(null);
     const [canvasTranslate, setCanvasTranslate] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    const [zoom, setZoom] = React.useState(state.zoom || 1);
+    const zoomRef = useRef(state.zoom || 1);
+    const canvasTranslateRef = useRef({ x: 0, y: 0 });
+    const isPanningRef = useRef(false);
+    const panStartRef = useRef({ x: 0, y: 0 });
+    const panTranslateStartRef = useRef({ x: 0, y: 0 });
+
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+    useEffect(() => { canvasTranslateRef.current = canvasTranslate; }, [canvasTranslate]);
+
     const [recurringDays, setRecurringDays] = React.useState<number>(() => {
         try {
             const s = localStorage.getItem('black-board-settings');
@@ -755,14 +767,77 @@ export const Canvas: React.FC = () => {
 
     const handleDoubleClick = (e: React.MouseEvent) => {
         if (e.target === canvasRef.current || e.currentTarget === canvasRef.current) {
+            const canvasX = (e.clientX - canvasTranslate.x) / zoom;
+            const canvasY = (e.clientY - canvasTranslate.y) / zoom;
             addItem({
                 type: 'text',
                 content: '',
-                x: e.clientX - 120,
-                y: e.clientY - 60,
+                x: canvasX - 120,
+                y: canvasY - 60,
             });
         }
     };
+
+    const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        if (e.button === 1) {
+            e.preventDefault();
+            startPanning(e.clientX, e.clientY);
+            return;
+        }
+        if (e.button === 0 && e.target === canvasRef.current) {
+            startPanning(e.clientX, e.clientY);
+        }
+    };
+
+    const startPanning = (clientX: number, clientY: number) => {
+        isPanningRef.current = true;
+        panStartRef.current = { x: clientX, y: clientY };
+        panTranslateStartRef.current = { ...canvasTranslateRef.current };
+        window.addEventListener('mousemove', handleWindowMouseMove);
+        window.addEventListener('mouseup', handleWindowMouseUp);
+    };
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+        if (!isPanningRef.current) return;
+        const dx = e.clientX - panStartRef.current.x;
+        const dy = e.clientY - panStartRef.current.y;
+        const next = {
+            x: panTranslateStartRef.current.x + dx,
+            y: panTranslateStartRef.current.y + dy,
+        };
+        canvasTranslateRef.current = next;
+        setCanvasTranslate(next);
+    };
+
+    const handleWindowMouseUp = () => {
+        isPanningRef.current = false;
+        window.removeEventListener('mousemove', handleWindowMouseMove);
+        window.removeEventListener('mouseup', handleWindowMouseUp);
+    };
+
+    // Wheel zoom (Ctrl+scroll)
+    useEffect(() => {
+        const el = canvasRef.current;
+        if (!el || viewMode !== 'canvas') return;
+        const handleWheel = (e: WheelEvent) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const curZoom = zoomRef.current;
+            const curTrans = canvasTranslateRef.current;
+            const factor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
+            const newZoom = Math.min(5, Math.max(0.15, curZoom * factor));
+            const newTrans = {
+                x: e.clientX - (e.clientX - curTrans.x) * (newZoom / curZoom),
+                y: e.clientY - (e.clientY - curTrans.y) * (newZoom / curZoom),
+            };
+            canvasTranslateRef.current = newTrans;
+            zoomRef.current = newZoom;
+            setCanvasTranslate(newTrans);
+            setZoom(newZoom);
+        };
+        el.addEventListener('wheel', handleWheel, { passive: false });
+        return () => el.removeEventListener('wheel', handleWheel);
+    }, [viewMode]);
 
     const handleEnterCanvas = (id: string) => {
         setCanvasTranslate({ x: 0, y: 0 });
@@ -777,7 +852,7 @@ export const Canvas: React.FC = () => {
     if (!isLoaded) return null;
 
     return (
-        <div className="relative w-screen h-screen overflow-hidden bg-canvas-bg canvas-bg">
+        <div className={`relative w-screen h-screen overflow-hidden bg-canvas-bg ${viewMode !== 'canvas' ? 'canvas-bg' : ''}`}>
 
             {viewMode === 'home' ? (
                 <StatsBoard
@@ -802,9 +877,14 @@ export const Canvas: React.FC = () => {
 
                 <div
                     ref={canvasRef}
-                    className="absolute inset-0 w-full h-full"
-                    style={{ transform: `translate(${canvasTranslate.x}px, ${canvasTranslate.y}px)`, transition: 'transform 0.5s cubic-bezier(0.4,0,0.2,1)' }}
+                    className="absolute inset-0 w-full h-full canvas-bg"
+                    style={{
+                        transform: `translate(${canvasTranslate.x}px, ${canvasTranslate.y}px) scale(${zoom})`,
+                        transformOrigin: '0 0',
+                        cursor: isPanningRef.current ? 'grabbing' : 'grab',
+                    }}
                     onDoubleClick={handleDoubleClick}
+                    onMouseDown={handleCanvasMouseDown}
                 >
                     {currentItems.map((item) => (
                         <CanvasItemComponent
@@ -871,8 +951,11 @@ export const Canvas: React.FC = () => {
                                     if (target) {
                                         const w = target.width ?? ITEM_DEFAULTS[target.type]?.width ?? 240;
                                         const h = target.height ?? ITEM_DEFAULTS[target.type]?.height ?? 120;
-                                        const tx = window.innerWidth / 2 - (target.x + w / 2);
-                                        const ty = window.innerHeight / 2 - (target.y + h / 2);
+                                        const curZoom = zoomRef.current;
+                                        const tx = window.innerWidth / 2 - (target.x + w / 2) * curZoom;
+                                        const ty = window.innerHeight / 2 - (target.y + h / 2) * curZoom;
+                                        canvasTranslateRef.current = { x: tx, y: ty };
+                                        zoomRef.current = curZoom;
                                         setCanvasTranslate({ x: tx, y: ty });
                                     }
                                     setBlockNavItemId(blockId);
@@ -1654,6 +1737,68 @@ export const Canvas: React.FC = () => {
                     <Search size={20} className="text-white/60 group-hover:text-sky-400 transition-colors" />
                     <span className="text-[10px] uppercase font-bold tracking-wider text-white/30 group-hover:text-white/60">Search</span>
                 </button>
+
+                <div className="w-[1px] h-10 bg-white/10 mx-1" />
+
+                {/* Zoom controls */}
+                <div className="flex items-center gap-0.5">
+                    <button
+                        onClick={() => {
+                            const curZoom = zoomRef.current;
+                            const curTrans = canvasTranslateRef.current;
+                            const newZoom = Math.max(0.15, curZoom / 1.2);
+                            const cx = window.innerWidth / 2;
+                            const cy = window.innerHeight / 2;
+                            const newTrans = {
+                                x: cx - (cx - curTrans.x) * (newZoom / curZoom),
+                                y: cy - (cy - curTrans.y) * (newZoom / curZoom),
+                            };
+                            canvasTranslateRef.current = newTrans;
+                            zoomRef.current = newZoom;
+                            setCanvasTranslate(newTrans);
+                            setZoom(newZoom);
+                        }}
+                        className="flex items-center justify-center w-9 h-9 hover:bg-white/5 rounded-lg transition-colors group"
+                        title="Zoom Out"
+                    >
+                        <ZoomOut size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
+                    </button>
+                    <button
+                        onClick={() => {
+                            setZoom(1);
+                            setCanvasTranslate({ x: 0, y: 0 });
+                            canvasTranslateRef.current = { x: 0, y: 0 };
+                            zoomRef.current = 1;
+                        }}
+                        className="flex items-center justify-center px-2 h-9 hover:bg-white/5 rounded-lg transition-colors group font-mono text-xs min-w-[48px]"
+                        title="Reset zoom"
+                    >
+                        <span className="text-white/50 group-hover:text-white/90 transition-colors font-semibold">
+                            {Math.round(zoom * 100)}%
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => {
+                            const curZoom = zoomRef.current;
+                            const curTrans = canvasTranslateRef.current;
+                            const newZoom = Math.min(5, curZoom * 1.2);
+                            const cx = window.innerWidth / 2;
+                            const cy = window.innerHeight / 2;
+                            const newTrans = {
+                                x: cx - (cx - curTrans.x) * (newZoom / curZoom),
+                                y: cy - (cy - curTrans.y) * (newZoom / curZoom),
+                            };
+                            canvasTranslateRef.current = newTrans;
+                            zoomRef.current = newZoom;
+                            setCanvasTranslate(newTrans);
+                            setZoom(newZoom);
+                        }}
+                        className="flex items-center justify-center w-9 h-9 hover:bg-white/5 rounded-lg transition-colors group"
+                        title="Zoom In"
+                    >
+                        <ZoomIn size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
+                    </button>
+                </div>
             </div>
 
             {/* App Header */}
