@@ -447,6 +447,10 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const currentWidth = localSize?.width ?? item.width ?? defaultWidth;
     const currentHeight = localSize?.height ?? item.height ?? defaultHeight;
 
+    const infoExpanded = item.type === 'info' && isHovered && (item.infoEntries ?? []).length > 0;
+    const infoExpandedW = 220;
+    const infoExpandedH = Math.max(currentHeight, 76 + Math.min((item.infoEntries?.length ?? 0), 10) * 19);
+
 
     const renderContent = () => {
         switch (item.type) {
@@ -838,27 +842,33 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                     : item.infoType
                         ? (infoCardTypes.find(t => t.id === item.infoType)?.name ?? item.infoType)
                         : null;
-                const firstValue = entries[0]?.value ?? '';
-                const secondValue = entries[1]?.value ?? '';
                 return (
                     <div
-                        className="w-full h-full flex items-center justify-center cursor-pointer select-none"
+                        className="w-full h-full flex flex-col cursor-pointer select-none"
                         onDoubleClick={(e) => { e.stopPropagation(); setShowInfoModal(true); }}
                     >
-                        <div className="flex flex-col items-center gap-0.5">
+                        {/* Type badge */}
+                        <div className="shrink-0 px-2.5 pt-2 pb-1.5 flex items-center gap-2">
                             {resolvedTypeName ? (
-                                <span className="text-[9px] font-bold text-teal-400/80 text-center leading-tight max-w-[72px] truncate">{resolvedTypeName}</span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/15 text-teal-400 border border-teal-500/25 truncate max-w-full">{resolvedTypeName}</span>
                             ) : (
                                 <span className="text-[9px] text-white/30 italic">No type</span>
                             )}
-                            {firstValue && (
-                                <span className="text-[8px] text-white/40 text-center max-w-[72px] truncate leading-tight">{firstValue}</span>
-                            )}
-                            {secondValue && (
-                                <span className="text-[8px] text-white/30 text-center max-w-[72px] truncate leading-tight">{secondValue}</span>
-                            )}
+                        </div>
+
+                        {/* Fields */}
+                        <div className="flex-1 min-h-0 px-2.5 pb-2 overflow-hidden">
                             {entries.length === 0 && (
-                                <span className="text-[8px] text-white/20 italic">No fields</span>
+                                <p className="text-[9px] text-white/20 italic">No fields</p>
+                            )}
+                            {(isHovered ? entries : entries.slice(0, 2)).map((entry) => (
+                                <div key={entry.id} className="flex items-baseline gap-1 py-0.5 leading-tight">
+                                    <span className="text-[9px] font-semibold text-white/45 shrink-0">{entry.key}:</span>
+                                    <span className="text-[9px] text-white/75 truncate">{entry.value || '\u2014'}</span>
+                                </div>
+                            ))}
+                            {!isHovered && entries.length > 2 && (
+                                <span className="text-[8px] text-white/25">+{entries.length - 2} more</span>
                             )}
                         </div>
                     </div>
@@ -885,8 +895,8 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                 top: 0,
                 x: motionX,
                 y: motionY,
-                width: currentWidth,
-                height: currentHeight,
+                width: infoExpanded ? infoExpandedW : currentWidth,
+                height: infoExpanded ? infoExpandedH : currentHeight,
                 zIndex: isResizing || isHovered ? 10 : 1,
             }}
             onMouseEnter={() => {
@@ -896,7 +906,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
             onMouseLeave={() => {
                 hoverLeaveTimer.current = setTimeout(() => setIsHovered(false), 300);
             }}
-            className="group relative"
+            className={`group relative ${item.type === 'info' ? 'transition-[width,height] duration-200 ease-out' : ''}`}
         >
             <div
                 className={`

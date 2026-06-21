@@ -6,6 +6,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.13.0',
+    sections: [
+      {
+        heading: 'UI Update',
+        changes: [
+          'Info Card canvas preview redesigned: type shown as a badge, fields displayed as "key: value" pairs (first 2 collapsed, all visible on hover).',
+          'Info Card tile now physically expands on hover (to ~220px wide) to reveal all fields, and contracts back when not hovered — smooth CSS transition.',
+          'Info Card default size increased from 64×64 to 160×110 to accommodate the richer preview.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.12.0',
     sections: [
       {
