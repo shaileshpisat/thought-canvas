@@ -267,6 +267,7 @@ const ChildImageThumb: React.FC<{ content: string }> = ({ content }) => {
 export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, onEnterCanvas, canEject, onEject, onArchive, moveTargets, onMoveInto, clockTick: _clockTick, onToggleTimer, onStopTimer, isAlerting, isHighlighted, isBlockNavHighlighted, onLogAction, onDeleteAction, tagMaster = [], onUpdateTags, onLogHistory, allItems = [], onNavigateToBlock, walletMaster = [], infoCardTypes = [], readOnly = false }) => {
     const imageSrc = useImageSrc(item.content);
     const [isHovered, setIsHovered] = useState(false);
+    const [isInfoContentHovered, setIsInfoContentHovered] = useState(false);
     const hoverLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -447,7 +448,7 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
     const currentWidth = localSize?.width ?? item.width ?? defaultWidth;
     const currentHeight = localSize?.height ?? item.height ?? defaultHeight;
 
-    const infoExpanded = item.type === 'info' && isHovered && (item.infoEntries ?? []).length > 0;
+    const infoExpanded = item.type === 'info' && isInfoContentHovered && (item.infoEntries ?? []).length > 0;
     const infoExpandedW = 220;
     const infoExpandedH = Math.max(currentHeight, 76 + Math.min((item.infoEntries?.length ?? 0), 10) * 19);
 
@@ -861,15 +862,20 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                             {entries.length === 0 && (
                                 <p className="text-[9px] text-white/20 italic">No fields</p>
                             )}
-                            {(isHovered ? entries : entries.slice(0, 2)).map((entry) => (
-                                <div key={entry.id} className="flex items-baseline gap-1 py-0.5 leading-tight">
-                                    <span className="text-[9px] font-semibold text-white/45 shrink-0">{entry.key}:</span>
-                                    <span className="text-[9px] text-white/75 truncate">{entry.value || '\u2014'}</span>
-                                </div>
-                            ))}
-                            {!isHovered && entries.length > 2 && (
-                                <span className="text-[8px] text-white/25">+{entries.length - 2} more</span>
-                            )}
+                            <div
+                                onMouseEnter={() => setIsInfoContentHovered(true)}
+                                onMouseLeave={() => setIsInfoContentHovered(false)}
+                            >
+                                {(isHovered ? entries : entries.slice(0, 2)).map((entry) => (
+                                    <div key={entry.id} className="flex items-baseline gap-1 py-0.5 leading-tight">
+                                        <span className="text-[9px] font-semibold text-white/45 shrink-0">{entry.key}:</span>
+                                        <span className={`text-[9px] text-white/75 ${isHovered ? 'break-words' : 'truncate'}`}>{entry.value || '\u2014'}</span>
+                                    </div>
+                                ))}
+                                {!isHovered && entries.length > 2 && (
+                                    <span className="text-[8px] text-white/25">+{entries.length - 2} more</span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );
@@ -2320,11 +2326,17 @@ export const CanvasItem: React.FC<Props> = ({ item, onUpdate, onRemove, onMove, 
                                                     </div>
                                                     <div className="w-px h-4 bg-white/10 shrink-0" />
                                                     {/* Value */}
-                                                    <input
-                                                        className="flex-1 bg-transparent text-xs text-white/85 outline-none placeholder-white/20 focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
+                                                    <textarea
+                                                        className="flex-1 bg-transparent text-xs text-white/85 outline-none placeholder-white/20 focus:bg-white/5 rounded px-1 py-0.5 transition-colors resize-none min-h-[20px]"
                                                         value={entry.value}
                                                         placeholder="—"
                                                         readOnly={readOnly}
+                                                        rows={entry.value.includes('\n') || entry.value.length > 60 ? 3 : 1}
+                                                        onInput={(e) => {
+                                                            const el = e.currentTarget;
+                                                            el.style.height = 'auto';
+                                                            el.style.height = `${el.scrollHeight}px`;
+                                                        }}
                                                         onChange={(e) => {
                                                             const updated = (item.infoEntries ?? []).map((en) =>
                                                                 en.id === entry.id ? { ...en, value: e.target.value } : en
