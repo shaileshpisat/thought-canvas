@@ -18,11 +18,11 @@ Thought Canvas is a single-page, client-side freeform canvas app built with Next
 
 ### Data flow
 
-All canvas state lives in **`localStorage`** under the key `black-board-data`. There is no database or auth. The `useCanvas` hook ([src/hooks/useCanvas.ts](src/hooks/useCanvas.ts)) manages reads/writes to localStorage and exposes `addItem`, `updateItem`, `removeItem`, `moveItem`, and `clearCanvas`.
+All canvas state lives in **`localStorage`** under the key `black-board-data`. There is no database or auth. The `useCanvas` hook ([hooks/useCanvas.ts](hooks/useCanvas.ts)) manages reads/writes to localStorage and exposes `addItem`, `updateItem`, `removeItem`, `moveItem`, and `clearCanvas`.
 
 ### Core types
 
-[src/types/canvas.ts](src/types/canvas.ts) defines two types:
+[types/canvas.ts](types/canvas.ts) defines two types:
 - `CanvasItem` — a positioned card with `type: 'text' | 'image' | 'link'`, `x/y` coords, optional `width/height`, `content` string, and `metadata` (OG tags for links).
 - `CanvasState` — the full persisted state: `items[]`, `backgroundColor`, `zoom`.
 
@@ -35,13 +35,13 @@ page.tsx
     └── StorageStats.tsx ← modal showing localStorage usage
 ```
 
-**Canvas.tsx** ([src/components/Canvas.tsx](src/components/Canvas.tsx)):
+**Canvas.tsx** ([components/Canvas.tsx](components/Canvas.tsx)):
 - Global `paste` event listener converts clipboard text/URLs/images into new items.
 - Double-click on the empty canvas creates a new text item at the click position.
 - Bottom toolbar for adding Text / Image (file upload) / Link (prompt dialog).
 - Calls `/api/metadata` after adding a link item to fetch OG tags.
 
-**CanvasItem.tsx** ([src/components/CanvasItem.tsx](src/components/CanvasItem.tsx)):
+**CanvasItem.tsx** ([components/CanvasItem.tsx](components/CanvasItem.tsx)):
 - Uses Framer Motion `drag` + `dragMomentum={false}` for free drag. Position is committed on `onDragEnd` by adding the drag offset to the stored `x/y`.
 - Text items render via `ReactMarkdown` + `remark-gfm` in view mode; switch to `<textarea>` in edit mode.
 - Image items store base64 data URLs in `content`.
@@ -49,11 +49,11 @@ page.tsx
 
 ### API route
 
-[src/app/api/metadata/route.ts](src/app/api/metadata/route.ts) — server-side proxy that fetches a URL and uses `cheerio` to parse `og:title`, `og:description`, and `og:image` tags. Required to avoid CORS issues when fetching third-party pages from the browser.
+[app/api/metadata/route.ts](app/api/metadata/route.ts) — server-side proxy that fetches a URL and uses `cheerio` to parse `og:title`, `og:description`, and `og:image` tags. Required to avoid CORS issues when fetching third-party pages from the browser.
 
 ### Styling
 
-Tailwind v4 with a custom theme in [src/app/globals.css](src/app/globals.css):
+Tailwind v4 with a custom theme in [app/globals.css](app/globals.css):
 - `canvas-bg` utility — 40px dot-grid via CSS background-image.
 - `glass` / `glass-dark` utilities — glassmorphism effect used on all cards and the toolbar.
 - Fonts: `Inter` (sans), `Outfit` (display via `font-display`).
@@ -61,7 +61,7 @@ Tailwind v4 with a custom theme in [src/app/globals.css](src/app/globals.css):
 
 ### Placement logic
 
-[src/utils/canvasUtils.ts](src/utils/canvasUtils.ts) — `findEmptyLocation` scans existing items with a 40px padding collision check, stepping right then down, to place new items without overlap.
+[utils/canvasUtils.ts](utils/canvasUtils.ts) — `findEmptyLocation` scans existing items with a 40px padding collision check, stepping right then down, to place new items without overlap.
 
 ## Versioning — MANDATORY, DO NOT SKIP
 
@@ -70,7 +70,7 @@ After EVERY conversation where any code changed, you MUST update versioning befo
 Update all three files together:
 1. `docs/CHANGELOG.md` — new entry at the top with all user-facing changes grouped under `###` headings
 2. `package.json` — bump version: `sed -i 's/"version": "OLD"/"version": "NEW"/' package.json`
-3. `src/data/changelog.ts` — add matching entry at the top of the `CHANGELOG` array so the in-app popup stays in sync
+3. `data/changelog.ts` — add matching entry at the top of the `CHANGELOG` array so the in-app popup stays in sync
 
 Version bump rules:
 - **PATCH** (x.x.**Z**) — bug fixes, small tweaks, style-only changes

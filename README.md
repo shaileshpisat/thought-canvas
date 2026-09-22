@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Thought Canvas
+
+A spatial thinking tool. Drop text, images, and links anywhere on a free-form canvas and organize your thoughts visually — all stored in your browser with no account required.
+
+## Features
+
+- **Spatial canvas** — drag and drop text, image, and link items anywhere on the screen
+- **Clipboard support** — paste images and links directly onto the canvas
+- **Link previews** — pasted URLs are resolved into rich cards via server-side metadata scraping
+- **Calendar & plan boards** — organize entries by date alongside the free-form canvas
+- **Recycle bin** — restore accidentally deleted items
+- **100% local** — all data lives in `localStorage`; nothing leaves your browser
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [Next.js 16](https://nextjs.org/) — App Router |
+| UI | [React 19](https://react.dev/) |
+| Language | [TypeScript 5](https://www.typescriptlang.org/) — strict mode |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com/) |
+| Animation | [Framer Motion](https://motion.dev/) |
+| Persistence | `localStorage` + `IndexedDB` (images) — no backend database |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18.17+
+- npm 9+
+
+### Install
+
+```bash
+npm install
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Data
 
-To learn more about Next.js, take a look at the following resources:
+Canvas items and settings are stored in `localStorage`; pasted images are stored in `IndexedDB` to avoid `localStorage` size limits. Nothing is sent to a server except a metadata fetch used to build link preview cards.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/               # Next.js App Router (layout, page, globals.css, metadata API route)
+components/        # Canvas, CanvasItem, PlanBoard, CalendarBoard, SearchPanel, etc.
+hooks/             # useCanvas, useRecycleBin, useStorageMonitor, useImageStorageTracker
+config/            # storageConfig
+data/              # changelog
+types/             # canvas types
+utils/             # canvasUtils, dateUtils, imageDB, searchUtils, etc.
+```
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT — see [LICENSE](LICENSE).
