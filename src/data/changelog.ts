@@ -6,6 +6,28 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.15.0',
+    sections: [
+      {
+        heading: 'Rebrand',
+        changes: [
+          'Renamed the product from Black Board to Thought Canvas across the app UI, page title, and manifest.',
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v2.14.0',
+    sections: [
+      {
+        heading: 'New Feature',
+        changes: [
+          'Info Card Types in Settings now have up/down arrows to reorder fields within a type.',
+        ],
+      },
+    ],
+  },
+  {
     version: 'v2.13.0',
     sections: [
       {

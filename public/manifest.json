@@ -1,6 +1,6 @@
 {
-    "name": "Black Board",
-    "short_name": "Board",
+    "name": "Thought Canvas",
+    "short_name": "Canvas",
     "description": "Infinite spatial thinking board - organize your mind, notes, and visual fragments.",
     "start_url": "/",
     "display": "standalone",

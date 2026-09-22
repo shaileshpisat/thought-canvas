@@ -1,6 +1,6 @@
 {
-  "name": "black-board",
-  "version": "2.13.0",
+  "name": "thought-canvas",
+  "version": "2.15.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

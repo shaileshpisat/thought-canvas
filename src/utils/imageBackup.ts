@@ -51,7 +51,7 @@ export async function runDailyBackup(): Promise<void> {
     const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `black-board-images-${todayString()}.json`;
+    a.download = `thought-canvas-images-${todayString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
 

@@ -1,11 +1,25 @@
 # Changelog
 
-All user-facing changes to Black Board are documented here, grouped by version.
+All user-facing changes to Thought Canvas are documented here, grouped by version.
 
 Format: `vMAJOR.MINOR.PATCH`
 - **MAJOR** — breaking changes or complete redesigns
 - **MINOR** — new features or significant UI changes
 - **PATCH** — bug fixes, small tweaks, copy/style-only changes
+
+---
+
+## v2.15.0
+
+### Rebrand
+- Renamed the product from Black Board to Thought Canvas across the app UI, page title, and manifest.
+
+---
+
+## v2.14.0
+
+### New Feature
+- Info Card Types in Settings now have up/down arrows to reorder fields within a type.
 
 ---
 

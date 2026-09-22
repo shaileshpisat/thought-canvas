@@ -13,13 +13,13 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Black Board | Infinite Spatial Thinking",
+  title: "Thought Canvas | Infinite Spatial Thinking",
   description: "The ultimate spatial thinking board for organizing your mind, notes, and visual fragments.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Black Board",
+    title: "Thought Canvas",
   },
   formatDetection: {
     telephone: false,

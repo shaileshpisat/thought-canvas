@@ -212,7 +212,7 @@ export const Canvas: React.FC = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `black-board-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `thought-canvas-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -1810,7 +1810,7 @@ export const Canvas: React.FC = () => {
                     <div>
                         <div className="flex items-baseline gap-2">
                             <h1 className="text-2xl font-display font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-                                Black Board
+                                Thought Canvas
                             </h1>
                             <button
                                 onClick={() => setShowChangelog(true)}
@@ -2128,6 +2128,30 @@ export const Canvas: React.FC = () => {
                                     <div className="flex flex-col gap-1 pl-1">
                                         {type.fields.map((field, fi) => (
                                             <div key={fi} className="flex items-center gap-2 group/field">
+                                                <button
+                                                    onClick={() => {
+                                                        const newFields = [...type.fields];
+                                                        [newFields[fi - 1], newFields[fi]] = [newFields[fi], newFields[fi - 1]];
+                                                        updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, fields: newFields } : t));
+                                                    }}
+                                                    className="opacity-0 group-hover/field:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/30 hover:text-white transition-all"
+                                                    title="Move up"
+                                                    style={{ visibility: fi === 0 ? 'hidden' : undefined }}
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const newFields = [...type.fields];
+                                                        [newFields[fi], newFields[fi + 1]] = [newFields[fi + 1], newFields[fi]];
+                                                        updateInfoCardTypes((state.infoCardTypes ?? []).map(t => t.id === type.id ? { ...t, fields: newFields } : t));
+                                                    }}
+                                                    className="opacity-0 group-hover/field:opacity-100 p-0.5 rounded hover:bg-white/10 text-white/30 hover:text-white transition-all"
+                                                    title="Move down"
+                                                    style={{ visibility: fi === type.fields.length - 1 ? 'hidden' : undefined }}
+                                                >
+                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
+                                                </button>
                                                 <input
                                                     className="flex-1 bg-transparent text-xs text-white/60 outline-none focus:text-white/90 focus:bg-white/5 rounded px-1 py-0.5 transition-colors"
                                                     value={field}

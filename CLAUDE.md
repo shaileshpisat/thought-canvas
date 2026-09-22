@@ -14,7 +14,7 @@ There are no tests in this project.
 
 ## Architecture
 
-Black Board is a single-page, client-side freeform canvas app built with Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, and Framer Motion.
+Thought Canvas is a single-page, client-side freeform canvas app built with Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, and Framer Motion.
 
 ### Data flow
 

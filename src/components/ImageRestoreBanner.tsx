@@ -84,7 +84,7 @@ export const ImageRestoreBanner: React.FC<Props> = ({ brokenIds, onRestored, onD
                                 {status === 'loading' ? 'Restoring…' : 'Upload backup file'}
                             </button>
                             <span className="text-[10px] text-white/25">
-                                black-board-images-YYYY-MM-DD.json
+                                thought-canvas-images-YYYY-MM-DD.json
                             </span>
                         </div>
                     )}
